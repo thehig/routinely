@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Callable
 
@@ -36,6 +35,7 @@ from .const import (
     SessionStatus,
     TaskStatus,
 )
+from .logger import Loggers
 from .models import (
     ExecutionSession,
     SessionHistory,
@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from .notifications import RoutinelyNotifications
     from .storage import RoutinelyStorage
 
-_LOGGER = logging.getLogger(__name__)
+_log = Loggers.engine
 
 
 class RoutineEngine:
@@ -138,18 +138,24 @@ class RoutineEngine:
 
     async def start_routine(self, routine_id: str) -> bool:
         """Start a routine execution."""
+        _log.debug("Start routine requested", routine_id=routine_id)
+        
         if self.is_active:
-            _LOGGER.warning("Cannot start routine: another routine is active")
+            _log.warning(
+                "Cannot start routine: another routine is active",
+                requested=routine_id,
+                active=self._session.routine_id if self._session else None,
+            )
             return False
 
         routine = self.storage.get_routine(routine_id)
         if not routine:
-            _LOGGER.error("Routine %s not found", routine_id)
+            _log.error("Routine not found", routine_id=routine_id)
             return False
 
         tasks = self.storage.get_routine_tasks(routine)
         if not tasks:
-            _LOGGER.error("Routine %s has no tasks", routine_id)
+            _log.error("Routine has no tasks", routine_id=routine_id, name=routine.name)
             return False
 
         # Create new session
@@ -199,12 +205,21 @@ class RoutineEngine:
         self._start_timer()
         self._notify_update()
 
-        _LOGGER.info("Started routine: %s", routine.name)
+        _log.info(
+            "Routine started",
+            routine_id=routine_id,
+            name=routine.name,
+            total_tasks=len(tasks),
+            estimated_duration=estimated_duration if self._notifications_enabled() else self.storage.calculate_routine_duration(routine),
+        )
         return True
 
     async def pause(self) -> bool:
         """Pause the current routine."""
+        _log.debug("Pause requested")
+        
         if not self._session or self._session.status != SessionStatus.RUNNING:
+            _log.debug("Cannot pause: no running routine")
             return False
 
         self._stop_timer()
@@ -226,12 +241,19 @@ class RoutineEngine:
 
         self._notify_update()
 
-        _LOGGER.info("Paused routine")
+        _log.info(
+            "Routine paused",
+            routine_id=self._session.routine_id,
+            elapsed_time=self._session.elapsed_time,
+        )
         return True
 
     async def resume(self) -> bool:
         """Resume the current routine."""
+        _log.debug("Resume requested")
+        
         if not self._session or self._session.status != SessionStatus.PAUSED:
+            _log.debug("Cannot resume: no paused routine")
             return False
 
         self._session.status = SessionStatus.RUNNING
@@ -255,20 +277,23 @@ class RoutineEngine:
         self._start_timer()
         self._notify_update()
 
-        _LOGGER.info("Resumed routine")
+        _log.info("Routine resumed", routine_id=self._session.routine_id)
         return True
 
     async def skip_task(self) -> bool:
         """Skip the current task."""
+        _log.debug("Skip task requested")
+        
         if not self._session or not self.is_active:
+            _log.debug("Cannot skip: no active routine")
             return False
 
+        task = self.get_current_task()
         current_state = self._session.task_states[self._session.current_task_index]
         current_state.status = TaskStatus.SKIPPED
         current_state.completed_at = datetime.now().isoformat()
         current_state.actual_duration = self._session.task_elapsed_time
 
-        task = self.get_current_task()
         self._fire_event(
             EVENT_TASK_SKIPPED,
             {
@@ -278,51 +303,88 @@ class RoutineEngine:
             },
         )
 
+        _log.info(
+            "Task skipped",
+            task_id=task.id if task else None,
+            task_name=task.name if task else None,
+            elapsed=self._session.task_elapsed_time,
+        )
+
         await self._advance_to_next_task()
         return True
 
     async def complete_task(self) -> bool:
         """Manually complete the current task."""
+        _log.debug("Complete task requested")
+        
         if not self._session or not self.is_active:
+            _log.debug("Cannot complete: no active routine")
             return False
 
         task = self.get_current_task()
         if not task:
+            _log.debug("Cannot complete: no current task")
             return False
 
         # Only allow manual completion for manual/confirm mode tasks
         if task.advancement_mode == AdvancementMode.AUTO:
+            _log.debug(
+                "Cannot manually complete auto-advance task",
+                task_id=task.id,
+                mode=task.advancement_mode,
+            )
             return False
 
+        _log.info("Task manually completed", task_id=task.id, task_name=task.name)
         await self._complete_current_task(auto_advanced=False)
         return True
 
     async def confirm(self) -> bool:
         """Confirm task completion during confirm window."""
+        _log.debug("Confirm requested")
+        
         if not self._session or not self._session.confirm_window_active:
+            _log.debug("Cannot confirm: no confirm window active")
             return False
 
+        task = self.get_current_task()
+        _log.info("Task confirmed", task_id=task.id if task else None)
+        
         self._session.confirm_window_active = False
         await self._complete_current_task(auto_advanced=False)
         return True
 
     async def snooze(self, seconds: int = DEFAULT_SNOOZE_DURATION) -> bool:
         """Snooze the confirm window."""
+        _log.debug("Snooze requested", seconds=seconds)
+        
         if not self._session or not self._session.confirm_window_active:
+            _log.debug("Cannot snooze: no confirm window active")
             return False
 
         self._session.confirm_window_remaining += seconds
+        _log.info(
+            "Confirm window snoozed",
+            added_seconds=seconds,
+            new_remaining=self._session.confirm_window_remaining,
+        )
         self._notify_update()
         return True
 
     async def cancel(self) -> bool:
         """Cancel the current routine."""
+        _log.debug("Cancel requested")
+        
         if not self._session or not self.is_active:
+            _log.debug("Cannot cancel: no active routine")
             return False
 
         self._stop_timer()
 
         routine = self.storage.get_routine(self._session.routine_id)
+        routine_id = self._session.routine_id
+        elapsed = self._session.elapsed_time
+        
         self._session.status = SessionStatus.CANCELLED
         self._session.completed_at = datetime.now().isoformat()
 
@@ -332,7 +394,7 @@ class RoutineEngine:
         self._fire_event(
             EVENT_ROUTINE_CANCELLED,
             {
-                ATTR_ROUTINE_ID: self._session.routine_id,
+                ATTR_ROUTINE_ID: routine_id,
                 ATTR_ROUTINE_NAME: routine.name if routine else "",
             },
         )
@@ -345,7 +407,12 @@ class RoutineEngine:
         self._session = None
         self._notify_update()
 
-        _LOGGER.info("Cancelled routine")
+        _log.info(
+            "Routine cancelled",
+            routine_id=routine_id,
+            name=routine.name if routine else None,
+            elapsed_time=elapsed,
+        )
         return True
 
     async def _complete_current_task(self, auto_advanced: bool) -> None:
@@ -353,13 +420,21 @@ class RoutineEngine:
         if not self._session:
             return
 
+        task = self.get_current_task()
         current_state = self._session.task_states[self._session.current_task_index]
         current_state.status = TaskStatus.COMPLETED
         current_state.completed_at = datetime.now().isoformat()
         current_state.actual_duration = self._session.task_elapsed_time
         current_state.was_auto_advanced = auto_advanced
 
-        task = self.get_current_task()
+        _log.debug(
+            "Task completed",
+            task_id=task.id if task else None,
+            task_name=task.name if task else None,
+            auto_advanced=auto_advanced,
+            actual_duration=current_state.actual_duration,
+        )
+
         self._fire_event(
             EVENT_TASK_COMPLETED,
             {
@@ -386,8 +461,15 @@ class RoutineEngine:
         routine = self.storage.get_routine(self._session.routine_id)
         tasks = self.storage.get_routine_tasks(routine) if routine else []
 
+        _log.debug(
+            "Advancing to next task",
+            next_index=next_index,
+            total_tasks=len(tasks),
+        )
+
         if next_index >= len(tasks):
             # Routine complete
+            _log.debug("All tasks complete, finishing routine")
             await self._complete_routine()
             return
 
@@ -399,12 +481,22 @@ class RoutineEngine:
         current_state.status = TaskStatus.ACTIVE
         current_state.started_at = datetime.now().isoformat()
 
-        self._fire_task_started_event(tasks[next_index], next_index)
+        next_task = tasks[next_index]
+        _log.info(
+            "Task started",
+            task_id=next_task.id,
+            task_name=next_task.name,
+            task_index=next_index,
+            duration=next_task.duration,
+            mode=next_task.advancement_mode.value,
+        )
+
+        self._fire_task_started_event(next_task, next_index)
 
         # Send task started notification
         if self._notifications_enabled() and routine:
             await self.notifications.notify_task_started(
-                task=tasks[next_index],
+                task=next_task,
                 routine_name=routine.name,
                 task_index=next_index,
                 total_tasks=len(tasks),
@@ -426,11 +518,12 @@ class RoutineEngine:
         routine = self.storage.get_routine(self._session.routine_id)
         completed, skipped, total = self.get_progress()
         elapsed_time = self._session.elapsed_time
+        routine_id = self._session.routine_id
 
         self._fire_event(
             EVENT_ROUTINE_COMPLETED,
             {
-                ATTR_ROUTINE_ID: self._session.routine_id,
+                ATTR_ROUTINE_ID: routine_id,
                 ATTR_ROUTINE_NAME: routine.name if routine else "",
                 "tasks_completed": completed,
                 "tasks_skipped": skipped,
@@ -450,7 +543,14 @@ class RoutineEngine:
             )
             await self.notifications.clear_notifications()
 
-        _LOGGER.info("Completed routine: %s", routine.name if routine else "")
+        _log.info(
+            "Routine completed",
+            routine_id=routine_id,
+            name=routine.name if routine else None,
+            tasks_completed=completed,
+            tasks_skipped=skipped,
+            total_duration=elapsed_time,
+        )
         self._session = None
         self._notify_update()
 
@@ -479,23 +579,28 @@ class RoutineEngine:
     def _start_timer(self) -> None:
         """Start the internal timer."""
         if self._timer_task and not self._timer_task.done():
+            _log.debug("Timer already running")
             return
 
+        _log.debug("Starting timer loop")
         self._timer_task = self.hass.async_create_task(self._timer_loop())
 
     def _stop_timer(self) -> None:
         """Stop the internal timer."""
         if self._timer_task and not self._timer_task.done():
+            _log.debug("Stopping timer loop")
             self._timer_task.cancel()
             self._timer_task = None
 
     async def _timer_loop(self) -> None:
         """Timer loop that ticks every second."""
+        _log.debug("Timer loop started")
         try:
             while self._session and self._session.status == SessionStatus.RUNNING:
                 await asyncio.sleep(1)
 
                 if not self._session or self._session.status != SessionStatus.RUNNING:
+                    _log.debug("Timer loop exiting: session ended or paused")
                     break
 
                 self._session.elapsed_time += 1
@@ -503,6 +608,7 @@ class RoutineEngine:
 
                 task = self.get_current_task()
                 if not task:
+                    _log.warning("Timer loop: no current task found")
                     break
 
                 if self._session.confirm_window_active:
@@ -513,7 +619,9 @@ class RoutineEngine:
                 self._notify_update()
 
         except asyncio.CancelledError:
-            pass
+            _log.debug("Timer loop cancelled")
+        except Exception as e:
+            _log.exception("Timer loop error", error=str(e))
 
     async def _handle_task_tick(self, task: Task) -> None:
         """Handle a timer tick during normal task execution."""

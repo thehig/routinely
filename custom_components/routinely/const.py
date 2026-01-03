@@ -125,6 +125,14 @@ CONF_DEFAULT_ADVANCEMENT_MODE: Final = "default_advancement_mode"
 CONF_ENABLE_TTS: Final = "enable_tts"
 CONF_TTS_ENTITY: Final = "tts_entity"
 CONF_ENABLE_NOTIFICATIONS: Final = "enable_notifications"
+CONF_LOG_LEVEL: Final = "log_level"
+
+# Log levels
+LOG_LEVEL_DEBUG: Final = "debug"
+LOG_LEVEL_INFO: Final = "info"
+LOG_LEVEL_WARNING: Final = "warning"
+LOG_LEVEL_ERROR: Final = "error"
+DEFAULT_LOG_LEVEL: Final = LOG_LEVEL_INFO
 
 # Task notification attributes
 ATTR_NOTIFICATION_MESSAGE: Final = "notification_message"

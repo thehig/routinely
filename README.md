@@ -225,6 +225,52 @@ cards:
           service: routinely.cancel
 ```
 
+## Logging & Debugging
+
+Routinely includes comprehensive logging to help diagnose issues.
+
+### Log Levels
+
+| Level | Description |
+|-------|-------------|
+| `debug` | Detailed diagnostics - timer ticks, state changes, all method calls |
+| `info` | Routine/task lifecycle events, service calls |
+| `warning` | Recoverable issues, deprecated usage |
+| `error` | Failures that prevent operations |
+
+### Configuration
+
+**Via Integration Options:**
+
+1. Settings → Devices & Services → Routinely → Configure
+2. Select desired log level from dropdown
+
+**Via configuration.yaml:**
+
+```yaml
+logger:
+  default: warning
+  logs:
+    custom_components.routinely: debug
+    custom_components.routinely.engine: debug
+    custom_components.routinely.notifications: info
+```
+
+### Log Output
+
+Logs appear in:
+- Home Assistant logs (Settings → System → Logs)
+- `home-assistant.log` file
+- Docker container logs (`docker logs homeassistant`)
+
+### Example Debug Output
+
+```
+[custom_components.routinely.engine] Routine started [routine_id=abc123 | name=Morning Routine | total_tasks=5]
+[custom_components.routinely.engine] Task started [task_id=xyz789 | task_name=Brush teeth | duration=120 | mode=auto]
+[custom_components.routinely.notifications] Sending notification [type=task_started | targets=['mobile_app_iphone']]
+```
+
 ## License
 
 MIT

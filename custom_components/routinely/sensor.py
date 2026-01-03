@@ -1,13 +1,13 @@
 """Sensor platform for the Routinely integration."""
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .logger import Loggers
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
     from .coordinator import RoutinelyCoordinator
 
-_LOGGER = logging.getLogger(__name__)
+_log = Loggers.sensor
 
 
 async def async_setup_entry(
@@ -25,6 +25,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Routinely sensor entities."""
+    _log.debug("Setting up sensor entities")
     coordinator: RoutinelyCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities = [
@@ -34,6 +35,7 @@ async def async_setup_entry(
         RoutinelyProgressSensor(coordinator, entry),
     ]
     async_add_entities(entities)
+    _log.debug("Sensor entities registered", count=len(entities))
 
 
 class RoutinelyBaseSensor(CoordinatorEntity, SensorEntity):

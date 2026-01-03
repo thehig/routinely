@@ -20,7 +20,8 @@
           "task_ending_warning": "Task ending warning (seconds)",
           "default_advancement_mode": "Default advancement mode",
           "enable_tts": "Enable TTS announcements",
-          "tts_entity": "TTS media player entity"
+          "tts_entity": "TTS media player entity",
+          "log_level": "Log level"
         },
         "data_description": {
           "enable_notifications": "Send notifications with TTS announcements to mobile devices",
@@ -28,7 +29,8 @@
           "task_ending_warning": "Seconds before task ends to fire warning event (0 to disable)",
           "default_advancement_mode": "Default mode for new tasks (auto, manual, confirm)",
           "enable_tts": "Announce task changes via smart speakers",
-          "tts_entity": "Entity ID of media player for TTS (e.g., media_player.living_room)"
+          "tts_entity": "Entity ID of media player for TTS (e.g., media_player.living_room)",
+          "log_level": "Logging verbosity level (debug shows detailed diagnostics)"
         }
       }
     }

@@ -1,7 +1,6 @@
 """Notification handler for the Routinely integration."""
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.notify import ATTR_DATA, ATTR_MESSAGE, ATTR_TITLE
@@ -12,6 +11,7 @@ from .const import (
     DOMAIN,
     NotificationAction,
 )
+from .logger import Loggers
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from .models import Routine, Task
     from .storage import RoutinelyStorage
 
-_LOGGER = logging.getLogger(__name__)
+_log = Loggers.notifications
 
 # Default notification messages (can be overridden per task)
 DEFAULT_MESSAGES = {
@@ -76,8 +76,15 @@ class RoutinelyNotifications:
         """
         targets = self._get_targets()
         if not targets:
-            _LOGGER.debug("No notification targets configured")
+            _log.debug("No notification targets configured, skipping notification")
             return
+
+        _log.debug(
+            "Sending notification",
+            type=notification_type,
+            targets=targets,
+            critical=critical,
+        )
 
         # Build notification data
         notification_data = self._build_notification_data(
@@ -91,8 +98,13 @@ class RoutinelyNotifications:
         for target in targets:
             try:
                 await self._send_to_target(target, title, message, notification_data)
+                _log.debug("Notification sent", target=target, type=notification_type)
             except Exception as err:
-                _LOGGER.error("Failed to send notification to %s: %s", target, err)
+                _log.error(
+                    "Failed to send notification",
+                    target=target,
+                    error=str(err),
+                )
 
     async def _send_to_target(
         self,

@@ -9,13 +9,16 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN, SessionStatus
 from .engine import RoutineEngine
+from .logger import Loggers, get_logger
 from .notifications import RoutinelyNotifications
 from .storage import RoutinelyStorage
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
-_LOGGER = logging.getLogger(__name__)
+_log = Loggers.coordinator
+# Standard logger for DataUpdateCoordinator base class
+_std_logger = get_logger("coordinator")
 
 
 class RoutinelyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -25,7 +28,7 @@ class RoutinelyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Initialize the coordinator."""
         super().__init__(
             hass,
-            _LOGGER,
+            _std_logger,
             name=DOMAIN,
             update_interval=timedelta(seconds=1),
         )
@@ -34,6 +37,7 @@ class RoutinelyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.engine = RoutineEngine(
             hass, storage, self.notifications, self._on_engine_update
         )
+        _log.debug("Coordinator initialized")
 
     def _on_engine_update(self) -> None:
         """Handle engine state updates."""

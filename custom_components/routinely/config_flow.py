@@ -1,7 +1,6 @@
 """Config flow for the Routinely integration."""
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import voluptuous as vol
@@ -9,20 +8,28 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
+from .logger import Loggers
+
 from .const import (
     CONF_DEFAULT_ADVANCEMENT_MODE,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_ENABLE_TTS,
+    CONF_LOG_LEVEL,
     CONF_NOTIFICATION_TARGETS,
     CONF_TASK_ENDING_WARNING,
     CONF_TTS_ENTITY,
     DEFAULT_ADVANCEMENT_MODE,
+    DEFAULT_LOG_LEVEL,
     DEFAULT_TASK_ENDING_WARNING,
     DOMAIN,
+    LOG_LEVEL_DEBUG,
+    LOG_LEVEL_ERROR,
+    LOG_LEVEL_INFO,
+    LOG_LEVEL_WARNING,
     AdvancementMode,
 )
 
-_LOGGER = logging.getLogger(__name__)
+_log = Loggers.config
 
 
 class RoutinelyConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -34,11 +41,14 @@ class RoutinelyConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
+        _log.debug("Config flow user step", has_input=user_input is not None)
+        
         # Only allow a single instance
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
 
         if user_input is not None:
+            _log.info("Creating Routinely config entry")
             return self.async_create_entry(title="Routinely", data={})
 
         return self.async_show_form(step_id="user")
@@ -61,10 +71,14 @@ class RoutinelyOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage the options."""
+        _log.debug("Options flow init step", has_input=user_input is not None)
+        
         if user_input is not None:
+            _log.info("Updating Routinely options", options=user_input)
             return self.async_create_entry(title="", data=user_input)
 
         options = self.config_entry.options
+        _log.debug("Current options", options=dict(options))
 
         return self.async_show_form(
             step_id="init",
@@ -98,6 +112,15 @@ class RoutinelyOptionsFlow(OptionsFlow):
                         CONF_TTS_ENTITY,
                         default=options.get(CONF_TTS_ENTITY, ""),
                     ): str,
+                    vol.Optional(
+                        CONF_LOG_LEVEL,
+                        default=options.get(CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL),
+                    ): vol.In([
+                        LOG_LEVEL_DEBUG,
+                        LOG_LEVEL_INFO,
+                        LOG_LEVEL_WARNING,
+                        LOG_LEVEL_ERROR,
+                    ]),
                 }
             ),
         )
