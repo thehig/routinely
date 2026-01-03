@@ -674,7 +674,7 @@ class RoutineEngine:
         self._session.completed_at = datetime.now().isoformat()
 
         routine = self.storage.get_routine(self._session.routine_id)
-        completed, skipped, total = self.get_progress()
+        completed, skipped, total, _active_total = self.get_progress()
         elapsed_time = self._session.elapsed_time
         routine_id = self._session.routine_id
 
