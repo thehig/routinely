@@ -73,6 +73,50 @@ class Task:
 
 
 @dataclass
+class NotificationSettings:
+    """Notification timing settings."""
+    
+    # Notifications before task starts (seconds)
+    notify_before: list[int] = field(default_factory=lambda: [600, 300, 60])
+    # Notify when task starts
+    notify_on_start: bool = True
+    # Notifications for time remaining (seconds)
+    notify_remaining: list[int] = field(default_factory=lambda: [300, 60])
+    # Notifications when overdue (seconds)
+    notify_overdue: list[int] = field(default_factory=lambda: [60, 300, 600])
+    # Notify when task completes
+    notify_on_complete: bool = False
+    # Auto-next specific (different timing for auto-advancing tasks)
+    autonext_notify_before: list[int] = field(default_factory=lambda: [300, 60])
+    autonext_notify_remaining: list[int] = field(default_factory=lambda: [60])
+    
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "NotificationSettings":
+        """Create NotificationSettings from dictionary."""
+        return cls(
+            notify_before=data.get("notify_before", [600, 300, 60]),
+            notify_on_start=data.get("notify_on_start", True),
+            notify_remaining=data.get("notify_remaining", [300, 60]),
+            notify_overdue=data.get("notify_overdue", [60, 300, 600]),
+            notify_on_complete=data.get("notify_on_complete", False),
+            autonext_notify_before=data.get("autonext_notify_before", [300, 60]),
+            autonext_notify_remaining=data.get("autonext_notify_remaining", [60]),
+        )
+    
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "notify_before": self.notify_before,
+            "notify_on_start": self.notify_on_start,
+            "notify_remaining": self.notify_remaining,
+            "notify_overdue": self.notify_overdue,
+            "notify_on_complete": self.notify_on_complete,
+            "autonext_notify_before": self.autonext_notify_before,
+            "autonext_notify_remaining": self.autonext_notify_remaining,
+        }
+
+
+@dataclass
 class Routine:
     """Represents a routine (ordered collection of tasks)."""
 
@@ -84,6 +128,8 @@ class Routine:
     # Schedule fields (for UI display, actual scheduling via HA automations)
     schedule_time: str | None = None  # e.g., "08:00"
     schedule_days: list[str] = field(default_factory=list)  # e.g., ["mon", "tue", "wed"]
+    # Notification settings override (None = use global defaults)
+    notification_settings: NotificationSettings | None = None
     created_at: str = ""
     updated_at: str = ""
 
@@ -98,6 +144,8 @@ class Routine:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Routine:
         """Create Routine from dictionary."""
+        notif_data = data.get("notification_settings")
+        notif_settings = NotificationSettings.from_dict(notif_data) if notif_data else None
         return cls(
             id=data["id"],
             name=data["name"],
@@ -106,6 +154,7 @@ class Routine:
             tags=data.get("tags", []),
             schedule_time=data.get("schedule_time"),
             schedule_days=data.get("schedule_days", []),
+            notification_settings=notif_settings,
             created_at=data.get("created_at", ""),
             updated_at=data.get("updated_at", ""),
         )
@@ -120,6 +169,7 @@ class Routine:
             "tags": self.tags,
             "schedule_time": self.schedule_time,
             "schedule_days": self.schedule_days,
+            "notification_settings": self.notification_settings.to_dict() if self.notification_settings else None,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -133,19 +183,32 @@ class TaskState:
     status: TaskStatus = TaskStatus.PENDING
     started_at: str | None = None
     completed_at: str | None = None
+    skipped_at: str | None = None
     actual_duration: int | None = None
     was_auto_advanced: bool = False
+    # Track which notifications have been sent (seconds values)
+    sent_before_notifications: list[int] = field(default_factory=list)
+    sent_remaining_notifications: list[int] = field(default_factory=list)
+    sent_overdue_notifications: list[int] = field(default_factory=list)
+    sent_start_notification: bool = False
+    sent_complete_notification: bool = False
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> TaskState:
+    def from_dict(cls, data: dict[str, Any]) -> "TaskState":
         """Create TaskState from dictionary."""
         return cls(
             task_id=data["task_id"],
             status=TaskStatus(data.get("status", "pending")),
             started_at=data.get("started_at"),
             completed_at=data.get("completed_at"),
+            skipped_at=data.get("skipped_at"),
             actual_duration=data.get("actual_duration"),
             was_auto_advanced=data.get("was_auto_advanced", False),
+            sent_before_notifications=data.get("sent_before_notifications", []),
+            sent_remaining_notifications=data.get("sent_remaining_notifications", []),
+            sent_overdue_notifications=data.get("sent_overdue_notifications", []),
+            sent_start_notification=data.get("sent_start_notification", False),
+            sent_complete_notification=data.get("sent_complete_notification", False),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -155,8 +218,14 @@ class TaskState:
             "status": self.status.value,
             "started_at": self.started_at,
             "completed_at": self.completed_at,
+            "skipped_at": self.skipped_at,
             "actual_duration": self.actual_duration,
             "was_auto_advanced": self.was_auto_advanced,
+            "sent_before_notifications": self.sent_before_notifications,
+            "sent_remaining_notifications": self.sent_remaining_notifications,
+            "sent_overdue_notifications": self.sent_overdue_notifications,
+            "sent_start_notification": self.sent_start_notification,
+            "sent_complete_notification": self.sent_complete_notification,
         }
 
 

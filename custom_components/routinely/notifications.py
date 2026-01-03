@@ -316,6 +316,79 @@ class RoutinelyNotifications:
             actions=[NotificationAction.SKIP, NotificationAction.COMPLETE],
         )
 
+    async def notify_time_until_task(
+        self,
+        task: Task,
+        seconds_until: int,
+    ) -> None:
+        """Send notification about upcoming task."""
+        time_str = self._format_duration_spoken(seconds_until)
+        message = f"{time_str} until {task.name}"
+        tts = f"{time_str} until {task.name}."
+
+        await self.async_send(
+            notification_type="task_upcoming",
+            title=f"⏰ {task.name}",
+            message=message,
+            tts_message=tts,
+            critical=False,
+            actions=[NotificationAction.PAUSE],
+        )
+
+    async def notify_time_remaining(
+        self,
+        task: Task,
+        seconds_remaining: int,
+    ) -> None:
+        """Send notification about time remaining in task."""
+        time_str = self._format_duration_spoken(seconds_remaining)
+        message = f"{time_str} remaining in {task.name}"
+        tts = f"{time_str} remaining in {task.name}."
+
+        await self.async_send(
+            notification_type="task_remaining",
+            title=f"⏱️ {task.name}",
+            message=message,
+            tts_message=tts,
+            critical=False,
+            actions=[NotificationAction.COMPLETE, NotificationAction.SKIP],
+        )
+
+    async def notify_task_overdue(
+        self,
+        task: Task,
+        seconds_overdue: int,
+    ) -> None:
+        """Send notification that task is overdue."""
+        time_str = self._format_duration_spoken(seconds_overdue)
+        message = f"{time_str} over on {task.name}"
+        tts = f"{time_str} over on {task.name}."
+
+        await self.async_send(
+            notification_type="task_overdue",
+            title=f"⚠️ {task.name} Overdue",
+            message=message,
+            tts_message=tts,
+            critical=True,
+            actions=[NotificationAction.COMPLETE, NotificationAction.SKIP],
+        )
+
+    async def notify_task_complete(
+        self,
+        task: Task,
+    ) -> None:
+        """Send notification that task has completed."""
+        message = f"{task.name} completed"
+        tts = f"{task.name} completed."
+
+        await self.async_send(
+            notification_type="task_completed",
+            title=f"✅ {task.name}",
+            message=message,
+            tts_message=tts,
+            critical=False,
+        )
+
     async def notify_task_awaiting_input(
         self,
         task: Task,

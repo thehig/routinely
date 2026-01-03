@@ -18,7 +18,21 @@ from .const import (
     ATTR_TOTAL_TASKS,
     ATTR_WAS_AUTO_ADVANCED,
     CONF_ENABLE_NOTIFICATIONS,
+    CONF_NOTIFY_BEFORE,
+    CONF_NOTIFY_ON_COMPLETE,
+    CONF_NOTIFY_ON_START,
+    CONF_NOTIFY_OVERDUE,
+    CONF_NOTIFY_REMAINING,
+    CONF_AUTONEXT_NOTIFY_BEFORE,
+    CONF_AUTONEXT_NOTIFY_REMAINING,
+    DEFAULT_AUTONEXT_NOTIFY_BEFORE,
+    DEFAULT_AUTONEXT_NOTIFY_REMAINING,
     DEFAULT_CONFIRM_WINDOW,
+    DEFAULT_NOTIFY_BEFORE,
+    DEFAULT_NOTIFY_ON_COMPLETE,
+    DEFAULT_NOTIFY_ON_START,
+    DEFAULT_NOTIFY_OVERDUE,
+    DEFAULT_NOTIFY_REMAINING,
     DEFAULT_SNOOZE_DURATION,
     DEFAULT_TASK_ENDING_WARNING,
     EVENT_ROUTINE_CANCELLED,
@@ -38,6 +52,8 @@ from .const import (
 from .logger import Loggers
 from .models import (
     ExecutionSession,
+    NotificationSettings,
+    Routine,
     SessionHistory,
     Task,
     TaskState,
@@ -71,12 +87,30 @@ class RoutineEngine:
         self._session: ExecutionSession | None = None
         self._timer_task: asyncio.Task | None = None
         self._ending_soon_fired = False
+        self._task_timer_expired = False
 
     def _notifications_enabled(self) -> bool:
         """Check if notifications are enabled."""
         return (
             self.notifications is not None
             and self.storage.get_setting(CONF_ENABLE_NOTIFICATIONS, True)
+        )
+
+    def _get_notification_settings(self, routine: Routine | None = None) -> NotificationSettings:
+        """Get notification settings, using routine override if present."""
+        # Check for routine-level override
+        if routine and routine.notification_settings:
+            return routine.notification_settings
+        
+        # Use global config settings
+        return NotificationSettings(
+            notify_before=self.storage.get_setting(CONF_NOTIFY_BEFORE, DEFAULT_NOTIFY_BEFORE),
+            notify_on_start=self.storage.get_setting(CONF_NOTIFY_ON_START, DEFAULT_NOTIFY_ON_START),
+            notify_remaining=self.storage.get_setting(CONF_NOTIFY_REMAINING, DEFAULT_NOTIFY_REMAINING),
+            notify_overdue=self.storage.get_setting(CONF_NOTIFY_OVERDUE, DEFAULT_NOTIFY_OVERDUE),
+            notify_on_complete=self.storage.get_setting(CONF_NOTIFY_ON_COMPLETE, DEFAULT_NOTIFY_ON_COMPLETE),
+            autonext_notify_before=self.storage.get_setting(CONF_AUTONEXT_NOTIFY_BEFORE, DEFAULT_AUTONEXT_NOTIFY_BEFORE),
+            autonext_notify_remaining=self.storage.get_setting(CONF_AUTONEXT_NOTIFY_REMAINING, DEFAULT_AUTONEXT_NOTIFY_REMAINING),
         )
 
     @property
@@ -224,18 +258,22 @@ class RoutineEngine:
 
         # Send notifications
         estimated_duration = self.storage.calculate_routine_duration(routine, skip_task_ids)
+        settings = self._get_notification_settings(routine)
         if self._notifications_enabled():
             await self.notifications.notify_routine_started(
                 routine=routine,
                 total_tasks=active_task_count,
                 estimated_duration=estimated_duration,
             )
-            await self.notifications.notify_task_started(
-                task=tasks[first_active_index],
-                routine_name=routine.name,
-                task_index=first_active_index,
-                total_tasks=len(tasks),
-            )
+            if settings.notify_on_start:
+                await self.notifications.notify_task_started(
+                    task=tasks[first_active_index],
+                    routine_name=routine.name,
+                    task_index=first_active_index,
+                    total_tasks=len(tasks),
+                )
+                # Mark as sent
+                self._session.task_states[first_active_index].sent_start_notification = True
 
         # Start timer
         self._start_timer()
@@ -483,6 +521,14 @@ class RoutineEngine:
             },
         )
 
+        # Send task completion notification if enabled
+        if self._notifications_enabled() and task:
+            routine = self.storage.get_routine(self._session.routine_id)
+            settings = self._get_notification_settings(routine)
+            if settings.notify_on_complete and not current_state.sent_complete_notification:
+                current_state.sent_complete_notification = True
+                await self.notifications.notify_task_complete(task)
+
         await self._advance_to_next_task()
 
     async def _advance_to_next_task(self) -> None:
@@ -493,6 +539,7 @@ class RoutineEngine:
         self._stop_timer()
         self._session.confirm_window_active = False
         self._ending_soon_fired = False
+        self._task_timer_expired = False
 
         next_index = self._session.current_task_index + 1
         routine = self.storage.get_routine(self._session.routine_id)
@@ -530,14 +577,18 @@ class RoutineEngine:
 
         self._fire_task_started_event(next_task, next_index)
 
-        # Send task started notification
+        # Send task started notification if enabled
         if self._notifications_enabled() and routine:
-            await self.notifications.notify_task_started(
-                task=next_task,
-                routine_name=routine.name,
-                task_index=next_index,
-                total_tasks=len(tasks),
-            )
+            settings = self._get_notification_settings(routine)
+            if settings.notify_on_start:
+                await self.notifications.notify_task_started(
+                    task=next_task,
+                    routine_name=routine.name,
+                    task_index=next_index,
+                    total_tasks=len(tasks),
+                )
+                # Mark as sent
+                self._session.task_states[next_index].sent_start_notification = True
 
         if self._session.status == SessionStatus.RUNNING:
             self._start_timer()
@@ -663,11 +714,61 @@ class RoutineEngine:
     async def _handle_task_tick(self, task: Task) -> None:
         """Handle a timer tick during normal task execution."""
         remaining = task.duration - self._session.task_elapsed_time
+        overdue = -remaining if remaining < 0 else 0
+        
+        # Get current task state
+        current_state = self._session.task_states[self._session.current_task_index]
+        
+        # Get notification settings
+        routine = self.storage.get_routine(self._session.routine_id)
+        settings = self._get_notification_settings(routine)
+        
+        # Determine which timing lists to use based on task mode
+        is_auto = task.advancement_mode == AdvancementMode.AUTO
+        notify_before = settings.autonext_notify_before if is_auto else settings.notify_before
+        notify_remaining = settings.autonext_notify_remaining if is_auto else settings.notify_remaining
+        notify_overdue = settings.notify_overdue
+
+        if self._notifications_enabled():
+            # Send "time remaining" notifications
+            for seconds in notify_remaining:
+                if remaining == seconds and seconds not in current_state.sent_remaining_notifications:
+                    current_state.sent_remaining_notifications.append(seconds)
+                    await self.notifications.notify_time_remaining(task, seconds)
+            
+            # Send "overdue" notifications (for manual/confirm mode tasks)
+            if overdue > 0 and not is_auto:
+                for seconds in notify_overdue:
+                    if overdue >= seconds and seconds not in current_state.sent_overdue_notifications:
+                        current_state.sent_overdue_notifications.append(seconds)
+                        await self.notifications.notify_task_overdue(task, seconds)
+            
+            # Check for upcoming task notifications (notify_before)
+            # This sends notifications about the NEXT task
+            next_task_index = self._session.current_task_index + 1
+            tasks = self.storage.get_routine_tasks(routine) if routine else []
+            
+            # Find next non-skipped task
+            while next_task_index < len(tasks):
+                next_state = self._session.task_states[next_task_index]
+                if next_state.status != TaskStatus.SKIPPED:
+                    break
+                next_task_index += 1
+            
+            if next_task_index < len(tasks) and remaining > 0:
+                next_task = tasks[next_task_index]
+                next_state = self._session.task_states[next_task_index]
+                
+                # Time until current task ends = remaining (this is when next task starts)
+                for seconds in notify_before:
+                    if remaining == seconds and seconds not in next_state.sent_before_notifications:
+                        next_state.sent_before_notifications.append(seconds)
+                        await self.notifications.notify_time_until_task(next_task, seconds)
+
+        # Legacy: Fire ending soon event  
         warning_time = self.storage.get_setting(
             "task_ending_warning", DEFAULT_TASK_ENDING_WARNING
         )
-
-        # Fire ending soon event and notification
         if remaining == warning_time and not self._ending_soon_fired:
             self._ending_soon_fired = True
             self._fire_event(
@@ -679,12 +780,10 @@ class RoutineEngine:
                     ATTR_TIME_REMAINING: remaining,
                 },
             )
-            # Send ending soon notification with TTS
-            if self._notifications_enabled():
-                await self.notifications.notify_task_ending_soon(task, remaining)
 
-        # Task timer expired
-        if remaining <= 0:
+        # Task timer expired - only handle once
+        if remaining <= 0 and not self._task_timer_expired:
+            self._task_timer_expired = True
             await self._handle_task_timer_expired(task)
 
     async def _handle_task_timer_expired(self, task: Task) -> None:

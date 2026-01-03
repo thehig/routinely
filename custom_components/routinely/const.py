@@ -137,3 +137,23 @@ DEFAULT_LOG_LEVEL: Final = LOG_LEVEL_INFO
 # Task notification attributes
 ATTR_NOTIFICATION_MESSAGE: Final = "notification_message"
 ATTR_TTS_MESSAGE: Final = "tts_message"
+
+# Notification timing settings
+CONF_NOTIFY_BEFORE: Final = "notify_before"  # List of seconds before task starts
+CONF_NOTIFY_ON_START: Final = "notify_on_start"
+CONF_NOTIFY_REMAINING: Final = "notify_remaining"  # List of seconds remaining
+CONF_NOTIFY_OVERDUE: Final = "notify_overdue"  # List of seconds overdue
+CONF_NOTIFY_ON_COMPLETE: Final = "notify_on_complete"
+
+# Default notification timings (in seconds)
+DEFAULT_NOTIFY_BEFORE: Final = [600, 300, 60]  # 10, 5, 1 min before
+DEFAULT_NOTIFY_REMAINING: Final = [300, 60]  # 5, 1 min remaining  
+DEFAULT_NOTIFY_OVERDUE: Final = [60, 300, 600]  # 1, 5, 10 min overdue
+DEFAULT_NOTIFY_ON_START: Final = True
+DEFAULT_NOTIFY_ON_COMPLETE: Final = False
+
+# Auto-next specific notification timings
+CONF_AUTONEXT_NOTIFY_BEFORE: Final = "autonext_notify_before"
+CONF_AUTONEXT_NOTIFY_REMAINING: Final = "autonext_notify_remaining"
+DEFAULT_AUTONEXT_NOTIFY_BEFORE: Final = [300, 60]  # 5, 1 min before
+DEFAULT_AUTONEXT_NOTIFY_REMAINING: Final = [60]  # 1 min remaining

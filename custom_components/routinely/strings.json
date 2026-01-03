@@ -17,7 +17,6 @@
         "data": {
           "enable_notifications": "Enable notifications",
           "notification_targets": "Notification targets",
-          "task_ending_warning": "Task ending warning (seconds)",
           "default_advancement_mode": "Default advancement mode",
           "enable_tts": "Enable TTS announcements",
           "tts_entity": "TTS media player entity",
@@ -26,11 +25,28 @@
         "data_description": {
           "enable_notifications": "Send notifications with TTS announcements to mobile devices",
           "notification_targets": "Comma-separated notify service names (e.g., mobile_app_iphone, mobile_app_pixel)",
-          "task_ending_warning": "Seconds before task ends to fire warning event (0 to disable)",
           "default_advancement_mode": "Default mode for new tasks (auto, manual, confirm)",
           "enable_tts": "Announce task changes via smart speakers",
           "tts_entity": "Entity ID of media player for TTS (e.g., media_player.living_room)",
           "log_level": "Logging verbosity level (debug shows detailed diagnostics)"
+        }
+      },
+      "notifications": {
+        "title": "Notification Timings",
+        "description": "Configure when to send task notifications. Enter comma-separated minutes (e.g., '10,5,1' for 10, 5, and 1 minute warnings).",
+        "data": {
+          "notify_before_str": "Minutes before task starts",
+          "notify_on_start": "Notify when task starts",
+          "notify_remaining_str": "Minutes remaining warnings",
+          "notify_overdue_str": "Minutes overdue warnings",
+          "notify_on_complete": "Notify when task completes"
+        },
+        "data_description": {
+          "notify_before_str": "e.g., '10,5,1' for 10, 5, and 1 minute before next task",
+          "notify_on_start": "Send notification when each task begins",
+          "notify_remaining_str": "e.g., '5,1' for 5 and 1 minute remaining",
+          "notify_overdue_str": "e.g., '1,5,10' for 1, 5, and 10 minutes overdue",
+          "notify_on_complete": "Send notification when task is completed"
         }
       }
     }

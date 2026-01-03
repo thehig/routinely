@@ -245,7 +245,7 @@ class RoutinelyRoutineCountSensor(RoutinelyBaseSensor):
         all_tags = set()
         for routine_id, routine in routines.items():
             duration = storage.calculate_routine_duration(routine)
-            routine_list.append({
+            routine_data = {
                 "id": routine_id,
                 "name": routine.name,
                 "icon": routine.icon,
@@ -256,7 +256,11 @@ class RoutinelyRoutineCountSensor(RoutinelyBaseSensor):
                 "tags": routine.tags,
                 "schedule_time": routine.schedule_time,
                 "schedule_days": routine.schedule_days,
-            })
+            }
+            # Include notification settings if customized
+            if routine.notification_settings:
+                routine_data["notification_settings"] = routine.notification_settings.to_dict()
+            routine_list.append(routine_data)
             all_tags.update(routine.tags)
         return {
             "routines": routine_list,

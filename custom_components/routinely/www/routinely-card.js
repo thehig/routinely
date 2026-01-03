@@ -40,6 +40,13 @@ class RoutinelyCard extends HTMLElement {
       routineTags: [],
       routineScheduleTime: '',
       routineScheduleDays: [],
+      // Notification settings (null = use global defaults)
+      notifyBefore: null,
+      notifyOnStart: null,
+      notifyRemaining: null,
+      notifyOverdue: null,
+      notifyOnComplete: null,
+      useCustomNotifications: false,
     };
     this._tagFilter = null; // Active tag filter
   }
@@ -975,6 +982,111 @@ class RoutinelyCard extends HTMLElement {
         border-color: #FF6B6B;
         color: white;
       }
+
+      /* === NOTIFICATION SETTINGS === */
+      .notification-settings {
+        background: rgba(102, 187, 106, 0.08);
+        border-radius: 12px;
+        padding: 16px;
+        margin-top: 10px;
+      }
+
+      .notification-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--divider-color, #eee);
+      }
+
+      .notification-toggle:last-child {
+        border-bottom: none;
+      }
+
+      .notification-toggle-label {
+        font-size: 0.95em;
+        color: var(--primary-text-color);
+      }
+
+      .notification-toggle-hint {
+        font-size: 0.8em;
+        color: var(--secondary-text-color);
+        margin-top: 2px;
+      }
+
+      .toggle-switch {
+        position: relative;
+        width: 52px;
+        height: 28px;
+        background: var(--divider-color, #ccc);
+        border-radius: 14px;
+        cursor: pointer;
+        transition: background 0.2s;
+        flex-shrink: 0;
+      }
+
+      .toggle-switch.on {
+        background: #66BB6A;
+      }
+
+      .toggle-switch::after {
+        content: '';
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        background: white;
+        border-radius: 50%;
+        top: 3px;
+        left: 3px;
+        transition: transform 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      }
+
+      .toggle-switch.on::after {
+        transform: translateX(24px);
+      }
+
+      .notification-time-input {
+        padding: 8px 12px;
+        border: 2px solid var(--divider-color, #ddd);
+        border-radius: 8px;
+        font-size: 0.9em;
+        width: 120px;
+        background: var(--card-background-color, white);
+        color: var(--primary-text-color);
+      }
+
+      .collapsible-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 0;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .collapsible-header:hover {
+        opacity: 0.8;
+      }
+
+      .collapsible-icon {
+        font-size: 1.2em;
+        transition: transform 0.2s;
+      }
+
+      .collapsible-icon.open {
+        transform: rotate(90deg);
+      }
+
+      .collapsible-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+      }
+
+      .collapsible-content.open {
+        max-height: 600px;
+      }
     `;
   }
 
@@ -1466,6 +1578,71 @@ class RoutinelyCard extends HTMLElement {
           </div>
         </div>
 
+        <div class="form-group">
+          <div class="collapsible-header" data-action="toggle-notifications">
+            <label class="form-label" style="margin:0; cursor:pointer;">🔔 Notification Settings</label>
+            <span class="collapsible-icon ${f.useCustomNotifications ? 'open' : ''}">▶</span>
+          </div>
+          <div class="collapsible-content ${f.useCustomNotifications ? 'open' : ''}" id="notification-settings">
+            <div class="notification-settings">
+              <div class="notification-toggle">
+                <div>
+                  <div class="notification-toggle-label">Use custom notifications</div>
+                  <div class="notification-toggle-hint">Override global settings for this routine</div>
+                </div>
+                <div class="toggle-switch ${f.useCustomNotifications ? 'on' : ''}" data-action="toggle-custom-notif" id="toggle-custom-notif"></div>
+              </div>
+              
+              ${f.useCustomNotifications ? `
+              <div class="notification-toggle">
+                <div>
+                  <div class="notification-toggle-label">Before task starts</div>
+                  <div class="notification-toggle-hint">Minutes: e.g., 10,5,1</div>
+                </div>
+                <input type="text" class="notification-time-input" id="notify-before" 
+                  value="${(f.notifyBefore || [10,5,1]).join(',')}" placeholder="10,5,1">
+              </div>
+              
+              <div class="notification-toggle">
+                <div>
+                  <div class="notification-toggle-label">When task starts</div>
+                </div>
+                <div class="toggle-switch ${f.notifyOnStart !== false ? 'on' : ''}" data-action="toggle-notify-start" id="toggle-notify-start"></div>
+              </div>
+              
+              <div class="notification-toggle">
+                <div>
+                  <div class="notification-toggle-label">Time remaining</div>
+                  <div class="notification-toggle-hint">Minutes: e.g., 5,1</div>
+                </div>
+                <input type="text" class="notification-time-input" id="notify-remaining" 
+                  value="${(f.notifyRemaining || [5,1]).join(',')}" placeholder="5,1">
+              </div>
+              
+              <div class="notification-toggle">
+                <div>
+                  <div class="notification-toggle-label">When overdue</div>
+                  <div class="notification-toggle-hint">Minutes: e.g., 1,5,10</div>
+                </div>
+                <input type="text" class="notification-time-input" id="notify-overdue" 
+                  value="${(f.notifyOverdue || [1,5,10]).join(',')}" placeholder="1,5,10">
+              </div>
+              
+              <div class="notification-toggle">
+                <div>
+                  <div class="notification-toggle-label">When task completes</div>
+                </div>
+                <div class="toggle-switch ${f.notifyOnComplete ? 'on' : ''}" data-action="toggle-notify-complete" id="toggle-notify-complete"></div>
+              </div>
+              ` : `
+              <div style="padding: 12px; color: var(--secondary-text-color); text-align: center;">
+                Enable custom notifications to configure timing
+              </div>
+              `}
+            </div>
+          </div>
+        </div>
+
         <div class="form-actions">
           <button class="btn btn-secondary" data-nav="routines" style="flex:1">Cancel</button>
           <button class="btn btn-success" data-action="${isEdit ? 'update-routine' : 'save-routine'}" style="flex:2">
@@ -1605,6 +1782,30 @@ class RoutinelyCard extends HTMLElement {
           case 'add-tag':
             this.addTag();
             break;
+          case 'toggle-notifications':
+            this._formState.useCustomNotifications = !this._formState.useCustomNotifications;
+            this.render();
+            break;
+          case 'toggle-custom-notif':
+            this._formState.useCustomNotifications = !this._formState.useCustomNotifications;
+            if (this._formState.useCustomNotifications) {
+              // Initialize defaults
+              this._formState.notifyBefore = this._formState.notifyBefore || [10, 5, 1];
+              this._formState.notifyOnStart = this._formState.notifyOnStart !== false;
+              this._formState.notifyRemaining = this._formState.notifyRemaining || [5, 1];
+              this._formState.notifyOverdue = this._formState.notifyOverdue || [1, 5, 10];
+              this._formState.notifyOnComplete = this._formState.notifyOnComplete || false;
+            }
+            this.render();
+            break;
+          case 'toggle-notify-start':
+            this._formState.notifyOnStart = !this._formState.notifyOnStart;
+            e.currentTarget.classList.toggle('on');
+            break;
+          case 'toggle-notify-complete':
+            this._formState.notifyOnComplete = !this._formState.notifyOnComplete;
+            e.currentTarget.classList.toggle('on');
+            break;
         }
       });
     });
@@ -1653,6 +1854,27 @@ class RoutinelyCard extends HTMLElement {
           e.preventDefault();
           this.addTag();
         }
+      });
+    }
+
+    // Notification time inputs
+    const notifyBeforeInput = this.shadowRoot.getElementById('notify-before');
+    const notifyRemainingInput = this.shadowRoot.getElementById('notify-remaining');
+    const notifyOverdueInput = this.shadowRoot.getElementById('notify-overdue');
+
+    if (notifyBeforeInput) {
+      notifyBeforeInput.addEventListener('input', (e) => {
+        this._formState.notifyBefore = this._parseMinutesToArray(e.target.value);
+      });
+    }
+    if (notifyRemainingInput) {
+      notifyRemainingInput.addEventListener('input', (e) => {
+        this._formState.notifyRemaining = this._parseMinutesToArray(e.target.value);
+      });
+    }
+    if (notifyOverdueInput) {
+      notifyOverdueInput.addEventListener('input', (e) => {
+        this._formState.notifyOverdue = this._parseMinutesToArray(e.target.value);
       });
     }
 
@@ -1796,9 +2018,34 @@ class RoutinelyCard extends HTMLElement {
     this._formState.routineScheduleDays = routine.schedule_days ? [...routine.schedule_days] : [];
     this._selectedTasks = routine.task_ids ? [...routine.task_ids] : [];
     
+    // Load notification settings if customized
+    if (routine.notification_settings) {
+      const ns = routine.notification_settings;
+      this._formState.useCustomNotifications = true;
+      this._formState.notifyBefore = (ns.notify_before || []).map(s => s / 60);
+      this._formState.notifyOnStart = ns.notify_on_start !== false;
+      this._formState.notifyRemaining = (ns.notify_remaining || []).map(s => s / 60);
+      this._formState.notifyOverdue = (ns.notify_overdue || []).map(s => s / 60);
+      this._formState.notifyOnComplete = ns.notify_on_complete || false;
+    } else {
+      this._formState.useCustomNotifications = false;
+      this._formState.notifyBefore = null;
+      this._formState.notifyOnStart = null;
+      this._formState.notifyRemaining = null;
+      this._formState.notifyOverdue = null;
+      this._formState.notifyOnComplete = null;
+    }
+    
     this._mode = 'edit-routine';
     this._lastRenderState = null;
     this.render();
+  }
+
+  _parseMinutesToArray(str) {
+    if (!str || !str.trim()) return [];
+    return str.split(',')
+      .map(s => parseInt(s.trim()))
+      .filter(n => !isNaN(n) && n > 0);
   }
 
   addTag() {
@@ -1875,6 +2122,20 @@ class RoutinelyCard extends HTMLElement {
       return;
     }
 
+    // Build notification settings if custom
+    let notificationSettings = null;
+    if (this._formState.useCustomNotifications) {
+      notificationSettings = {
+        notify_before: (this._formState.notifyBefore || []).map(m => m * 60),
+        notify_on_start: this._formState.notifyOnStart !== false,
+        notify_remaining: (this._formState.notifyRemaining || []).map(m => m * 60),
+        notify_overdue: (this._formState.notifyOverdue || []).map(m => m * 60),
+        notify_on_complete: this._formState.notifyOnComplete || false,
+        autonext_notify_before: (this._formState.notifyBefore || []).map(m => m * 60),
+        autonext_notify_remaining: (this._formState.notifyRemaining || []).map(m => m * 60),
+      };
+    }
+
     if (isUpdate && this._editingId) {
       const data = {
         routine_id: this._editingId,
@@ -1882,6 +2143,7 @@ class RoutinelyCard extends HTMLElement {
         tags: tags,
         schedule_time: scheduleTime,
         schedule_days: scheduleDays,
+        notification_settings: notificationSettings,
       };
       if (icon) data.icon = icon;
       this.callService('update_routine', data);
@@ -1899,6 +2161,7 @@ class RoutinelyCard extends HTMLElement {
         schedule_days: scheduleDays,
       };
       if (icon) data.icon = icon;
+      // Note: notification_settings not supported on create yet, edit after creation
       this.callService('create_routine', data);
     }
     
@@ -1937,6 +2200,12 @@ class RoutinelyCard extends HTMLElement {
       routineTags: [],
       routineScheduleTime: '',
       routineScheduleDays: [],
+      notifyBefore: null,
+      notifyOnStart: null,
+      notifyRemaining: null,
+      notifyOverdue: null,
+      notifyOnComplete: null,
+      useCustomNotifications: false,
     };
     this._selectedTasks = [];
   }
@@ -1956,6 +2225,6 @@ window.customCards.push({
   preview: true,
 });
 
-console.log('%c ROUTINELY CARD %c v1.4.0 ', 
+console.log('%c ROUTINELY CARD %c v1.5.0 ', 
   'background: #FF6B6B; color: white; font-weight: bold;',
   'background: #66BB6A; color: white;');

@@ -9,6 +9,7 @@ from homeassistant.core import ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 
 from .logger import Loggers
+from .models import NotificationSettings
 
 from .const import (
     ATTR_ADVANCEMENT_MODE,
@@ -142,6 +143,7 @@ SCHEMA_UPDATE_ROUTINE = vol.Schema(
         vol.Optional("tags"): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional("schedule_time"): cv.string,
         vol.Optional("schedule_days"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("notification_settings"): dict,
     }
 )
 
@@ -285,6 +287,12 @@ async def async_setup_services(
             routine.schedule_time = call.data["schedule_time"]
         if "schedule_days" in call.data:
             routine.schedule_days = call.data["schedule_days"]
+        if "notification_settings" in call.data:
+            ns_data = call.data["notification_settings"]
+            if ns_data:
+                routine.notification_settings = NotificationSettings.from_dict(ns_data)
+            else:
+                routine.notification_settings = None  # Use global defaults
 
         routine.updated_at = datetime.now().isoformat()
         await storage.async_update_routine(routine)
