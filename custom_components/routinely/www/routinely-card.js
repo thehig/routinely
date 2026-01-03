@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.7.7 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.7.8 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -159,6 +159,7 @@ const styles = `
     .reorder-btn:hover:not(.disabled) { background: var(--primary-color, #42A5F5); color: white; border-color: var(--primary-color, #42A5F5); }
     .reorder-btn.disabled { opacity: 0.3; cursor: not-allowed; }
     .reorder-btns-small { display: flex; flex-direction: column; gap: 1px; margin-right: 8px; }
+    .reorder-btns-small-placeholder { width: 24px; margin-right: 8px; }
     .reorder-btn-small { width: 22px; height: 18px; border: 1px solid var(--divider-color, #ddd); background: var(--card-background-color, white); border-radius: 3px; cursor: pointer; font-size: 0.6em; color: var(--primary-text-color); display: flex; align-items: center; justify-content: center; padding: 0; }
     .reorder-btn-small:hover:not(.disabled) { background: var(--primary-color, #42A5F5); color: white; border-color: var(--primary-color, #42A5F5); }
     .reorder-btn-small.disabled { opacity: 0.3; cursor: not-allowed; }
@@ -472,7 +473,7 @@ class RoutinelyCard extends HTMLElement {
               <div class="routine-info">
                 <div class="routine-name">${routine.name}</div>
                 <div class="routine-meta">
-                  ${routine.task_count || 0} tasks • ${utils.formatDuration(routine.total_duration || 0)}
+                  ${routine.task_count || 0} tasks • ${utils.formatDuration(routine.duration || 0)}
                   ${routine.tags && routine.tags.length > 0 ? ` • ${routine.tags.join(', ')}` : ''}
                 </div>
               </div>
@@ -646,7 +647,7 @@ class RoutinelyCard extends HTMLElement {
             <div class="item-info" data-action="edit-routine" data-routine-id="${routine.id}">
               <div class="item-name">${routine.name}</div>
               <div class="item-meta">
-                ${routine.task_count || 0} tasks • ${utils.formatDuration(routine.total_duration || 0)}
+                ${routine.task_count || 0} tasks • ${utils.formatDuration(routine.duration || 0)}
                 ${routine.tags && routine.tags.length > 0 ? ` • ${routine.tags.join(', ')}` : ''}
               </div>
             </div>
@@ -787,16 +788,19 @@ class RoutinelyCard extends HTMLElement {
           <div class="form-group">
             <label class="form-label">Tasks</label>
             <div class="task-selector" id="task-selector">
-              ${tasks.map((task, index) => {
+              ${tasks.map((task) => {
                 const isSelected = this._formState.selectedTasks?.has(task.id);
-                const isFirst = index === 0;
-                const isLast = index === tasks.length - 1;
+                const orderIdx = this._routineTaskOrder.indexOf(task.id);
+                const isFirst = orderIdx === 0;
+                const isLast = orderIdx === this._routineTaskOrder.length - 1;
                 return `
                   <div class="task-selector-item ${isSelected ? 'selected' : ''}">
-                    <div class="reorder-btns-small">
-                      <button class="reorder-btn-small ${isFirst ? 'disabled' : ''}" data-action="move-up" data-task-id="${task.id}" ${isFirst ? 'disabled' : ''}>▲</button>
-                      <button class="reorder-btn-small ${isLast ? 'disabled' : ''}" data-action="move-down" data-task-id="${task.id}" ${isLast ? 'disabled' : ''}>▼</button>
-                    </div>
+                    ${isSelected ? `
+                      <div class="reorder-btns-small">
+                        <button class="reorder-btn-small ${isFirst ? 'disabled' : ''}" data-action="move-up" data-task-id="${task.id}" ${isFirst ? 'disabled' : ''}>▲</button>
+                        <button class="reorder-btn-small ${isLast ? 'disabled' : ''}" data-action="move-down" data-task-id="${task.id}" ${isLast ? 'disabled' : ''}>▼</button>
+                      </div>
+                    ` : '<div class="reorder-btns-small-placeholder"></div>'}
                     <div class="task-selector-checkbox" data-action="toggle-task" data-task-id="${task.id}">${isSelected ? '✓' : ''}</div>
                     <div class="task-selector-label" data-action="toggle-task" data-task-id="${task.id}">
                       <span class="task-icon">${task.icon || '📋'}</span>
@@ -1108,8 +1112,15 @@ class RoutinelyCard extends HTMLElement {
         }
         if (this._formState.selectedTasks.has(taskId)) {
           this._formState.selectedTasks.delete(taskId);
+          // Remove from order list when unchecked
+          const orderIdx = this._routineTaskOrder.indexOf(taskId);
+          if (orderIdx !== -1) this._routineTaskOrder.splice(orderIdx, 1);
         } else {
           this._formState.selectedTasks.add(taskId);
+          // Add to order list when checked (if not already present)
+          if (!this._routineTaskOrder.includes(taskId)) {
+            this._routineTaskOrder.push(taskId);
+          }
         }
         // Save scroll position before render
         const taskSelector = this.shadowRoot.getElementById('task-selector');
