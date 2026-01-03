@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.7.9 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.8.0 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -21,7 +21,8 @@ let modulesLoaded = true;
 const styles = `
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     .card { background: var(--ha-card-background, var(--card-background-color, white)); border-radius: 16px; padding: 20px; min-height: 400px; position: relative; }
-    .task-name { font-size: 2em; font-weight: 700; text-align: center; padding: 20px; color: var(--primary-text-color); }
+    .task-icon-large { font-size: 3em; text-align: center; padding: 10px 0 0 0; }
+    .task-name { font-size: 2em; font-weight: 700; text-align: center; padding: 10px 20px 20px 20px; color: var(--primary-text-color); }
     .timer { font-size: 5em; font-weight: 700; text-align: center; font-family: 'SF Mono', monospace; padding: 20px 0; color: var(--primary-text-color); }
     .timer.paused { color: #FFA726; animation: pulse 1.5s ease-in-out infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
@@ -310,17 +311,19 @@ class RoutinelyCard extends HTMLElement {
     if (isActive) {
       // Active routine view
       const taskName = currentTaskEntity?.state || 'Unknown Task';
+      const taskIcon = currentTaskEntity?.attributes?.icon || '📋';
       const timeRemaining = parseInt(timeEntity?.attributes?.seconds) || 0;
-      const progress = parseFloat(progressEntity?.state) || 0;
+      const progressPercent = parseInt(progressEntity?.state) || 0;
       const currentTaskIndex = currentTaskEntity?.attributes?.task_index || 0;
-      const totalTasks = currentTaskEntity?.attributes?.total_tasks || 1;
+      const totalTasks = progressEntity?.attributes?.total_tasks || 1;
       const advancementMode = currentTaskEntity?.attributes?.advancement_mode || 'manual';
       
       content = this._renderActiveRoutine({
         taskName,
+        taskIcon,
         timeRemaining,
         isPaused,
-        progress,
+        progressPercent,
         currentTaskIndex,
         totalTasks,
         advancementMode,
@@ -364,8 +367,7 @@ class RoutinelyCard extends HTMLElement {
   // ==========================================================================
 
   _renderActiveRoutine(state) {
-    const { taskName, timeRemaining, isPaused, progress, currentTaskIndex, totalTasks, advancementMode, awaitingInput } = state;
-    const progressPercent = Math.round(progress * 100);
+    const { taskName, taskIcon, timeRemaining, isPaused, progressPercent, currentTaskIndex, totalTasks, advancementMode, awaitingInput } = state;
     
     let actionButtons = '';
     
@@ -407,16 +409,19 @@ class RoutinelyCard extends HTMLElement {
     const timerClass = isPaused ? 'timer paused' : 'timer';
     const statusText = isPaused ? '⏸️ PAUSED' : awaitingInput ? '⏳ WAITING' : '▶️ ACTIVE';
     
+    const clampedProgress = Math.min(100, Math.max(0, progressPercent));
+    
     return `
       <div class="card">
         <div class="status-label">${statusText}</div>
+        <div class="task-icon-large">${taskIcon}</div>
         <div class="task-name">${taskName || 'No Task'}</div>
         <div class="${timerClass}">${utils.formatTime(timeRemaining)}</div>
         <div class="progress-container">
           <div class="progress-bar">
-            <div class="progress-fill" style="width: ${progressPercent}%"></div>
+            <div class="progress-fill" style="width: ${clampedProgress}%"></div>
           </div>
-          <div class="progress-text">Task ${currentTaskIndex + 1} of ${totalTasks} (${progressPercent}%)</div>
+          <div class="progress-text">Task ${currentTaskIndex + 1} of ${totalTasks} (${clampedProgress}%)</div>
         </div>
         ${actionButtons}
       </div>
@@ -1023,7 +1028,7 @@ class RoutinelyCard extends HTMLElement {
         await this._callService('complete_task');
         break;
       case 'skip':
-        await this._callService('skip_task');
+        await this._callService('skip');
         break;
       case 'pause':
         await this._callService('pause');

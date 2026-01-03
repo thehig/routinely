@@ -119,10 +119,12 @@ class RoutinelyCurrentTaskSensor(RoutinelyBaseSensor):
         """Return additional state attributes."""
         data = self.coordinator.data
         return {
+            "icon": data.get("current_task_icon"),
             "duration": data.get("current_task_duration"),
             "advancement_mode": data.get("advancement_mode"),
             "task_elapsed_time": data.get("task_elapsed_time"),
             "task_index": data.get("current_task_index"),
+            "total_tasks": data.get("total_tasks"),
         }
 
 
