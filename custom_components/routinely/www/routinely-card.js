@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.7.5 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.7.6 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -546,7 +546,7 @@ class RoutinelyCard extends HTMLElement {
             <div class="task-time">${startTimeStr} - ${endTimeStr}</div>
           </div>
           <div class="task-duration">${utils.formatDuration(task.duration)}</div>
-          <span class="task-mode-badge" style="${utils.getModeStyle(task.advancement_mode)}">${utils.formatAdvancementMode(task.advancement_mode)}</span>
+          <span class="task-mode-badge" style="${utils.getModeStyle(task.advancement_mode || task.mode)}">${utils.formatAdvancementMode(task.advancement_mode || task.mode)}</span>
         </div>
       `;
     });
@@ -609,7 +609,7 @@ class RoutinelyCard extends HTMLElement {
             <span class="item-icon">${task.icon || '📋'}</span>
             <div class="item-info" data-action="edit-task" data-task-id="${task.id}">
               <div class="item-name">${task.name}</div>
-              <div class="item-meta">${utils.formatDuration(task.duration)} • ${utils.formatAdvancementMode(task.advancement_mode)}</div>
+              <div class="item-meta">${utils.formatDuration(task.duration)} • ${utils.formatAdvancementMode(task.advancement_mode || task.mode)}</div>
             </div>
             <div class="item-actions">
               <button class="item-btn" data-action="copy-task" data-task-id="${task.id}" title="Copy">📋</button>
@@ -1286,7 +1286,7 @@ class RoutinelyCard extends HTMLElement {
       name: task.name,
       icon: task.icon || '',
       duration: Math.floor(task.duration / 60), // seconds to minutes
-      mode: task.advancement_mode || 'manual'
+      mode: task.advancement_mode || task.mode || 'manual'
     };
     this._mode = 'edit-task';
     this._render();
@@ -1303,7 +1303,7 @@ class RoutinelyCard extends HTMLElement {
       task_name: `${task.name} (copy)`,
       duration: task.duration,
       icon: task.icon || '📋',
-      advancement_mode: task.advancement_mode || 'manual'
+      advancement_mode: task.advancement_mode || task.mode || 'manual'
     });
   }
 
