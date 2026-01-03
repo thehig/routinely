@@ -1,8 +1,12 @@
 """The Routinely integration."""
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+from homeassistant.components.frontend import async_register_built_in_panel
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.const import Platform
 from homeassistant.core import Event
 
@@ -17,8 +21,13 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _log = Loggers.init
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR]
+
+# Frontend card URL
+CARD_URL = f"/hacsfiles/{DOMAIN}/routinely-card.js"
+CARD_PATH = Path(__file__).parent / "www" / "routinely-card.js"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -61,6 +70,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up platforms
     _log.debug("Setting up platforms", platforms=PLATFORMS)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Register frontend card
+    try:
+        if CARD_PATH.exists():
+            await hass.http.async_register_static_paths([
+                StaticPathConfig(
+                    f"/local/{DOMAIN}/routinely-card.js",
+                    str(CARD_PATH),
+                    cache_headers=False,
+                )
+            ])
+            _log.debug("Registered frontend card")
+    except Exception as err:
+        _LOGGER.warning("Could not register frontend card: %s", err)
 
     # Listen for mobile app notification actions
     async def handle_notification_action(event: Event) -> None:

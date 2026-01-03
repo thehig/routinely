@@ -1,0 +1,146 @@
+# Simple Routinely Dashboard - Copy this to your Lovelace dashboard
+# Go to: Dashboard → Edit → Raw Configuration Editor → Paste this as a new view
+
+title: Routinely
+path: routinely
+icon: mdi:timer-outline
+cards:
+  # Status Card - Shows when routine is active
+  - type: conditional
+    conditions:
+      - entity: binary_sensor.routinely_active
+        state: "on"
+    card:
+      type: vertical-stack
+      cards:
+        - type: markdown
+          content: |
+            ## {{ state_attr('sensor.routinely_status', 'routine_name') }}
+            ### 🎯 {{ states('sensor.routinely_current_task') }}
+            # ⏱️ {{ states('sensor.routinely_time_remaining') }}
+            **Progress:** {{ states('sensor.routinely_progress') }}% (Task {{ state_attr('sensor.routinely_status', 'current_task_index') | int + 1 }} of {{ state_attr('sensor.routinely_status', 'total_tasks') }})
+        
+        - type: horizontal-stack
+          cards:
+            - type: button
+              name: "Pause"
+              icon: mdi:pause
+              tap_action:
+                action: call-service
+                service: routinely.pause
+              show_state: false
+            - type: button
+              name: "Skip"
+              icon: mdi:skip-next
+              tap_action:
+                action: call-service
+                service: routinely.skip
+              show_state: false
+            - type: button
+              name: "Done"
+              icon: mdi:check
+              tap_action:
+                action: call-service
+                service: routinely.complete_task
+              show_state: false
+            - type: button
+              name: "Cancel"
+              icon: mdi:stop
+              tap_action:
+                action: call-service
+                service: routinely.cancel
+                confirmation:
+                  text: "Cancel the routine?"
+              show_state: false
+
+  # Resume button when paused
+  - type: conditional
+    conditions:
+      - entity: binary_sensor.routinely_paused
+        state: "on"
+    card:
+      type: button
+      name: "▶️ Resume Routine"
+      tap_action:
+        action: call-service
+        service: routinely.resume
+      show_state: false
+
+  # Show when no routine is active
+  - type: conditional
+    conditions:
+      - entity: binary_sensor.routinely_active
+        state: "off"
+    card:
+      type: markdown
+      content: |
+        ## ⏱️ Routinely
+        No routine running. Use the buttons below to create tasks and routines.
+        
+        ---
+        
+        **Quick Start:**
+        1. Create tasks using the service `routinely.create_task`
+        2. Create a routine using `routinely.create_routine`  
+        3. Start with `routinely.start`
+
+  # Create Task Helper
+  - type: entities
+    title: "➕ Create Task"
+    show_header_toggle: false
+    entities:
+      - type: section
+        label: "Use Developer Tools → Services"
+      - type: button
+        name: "Open Services"
+        icon: mdi:tools
+        tap_action:
+          action: navigate
+          navigation_path: /developer-tools/service
+        action_name: "GO"
+
+  # Service Examples
+  - type: markdown
+    title: "📋 Service Examples"
+    content: |
+      **Create a Task:**
+      ```yaml
+      service: routinely.create_task
+      data:
+        task_name: "Brush teeth"
+        duration: 120
+        icon: "mdi:toothbrush"
+        advancement_mode: "auto"
+      ```
+      
+      **Create a Routine:**
+      ```yaml
+      service: routinely.create_routine
+      data:
+        routine_name: "Morning"
+        icon: "mdi:weather-sunny"
+        task_ids:
+          - "TASK_ID_1"
+          - "TASK_ID_2"
+      ```
+      
+      **Start Routine:**
+      ```yaml
+      service: routinely.start
+      data:
+        routine_id: "ROUTINE_ID"
+      ```
+      
+      💡 *Check logs for IDs after creating tasks/routines*
+
+  # Entity Status
+  - type: entities
+    title: "📊 Status Entities"
+    entities:
+      - entity: sensor.routinely_status
+      - entity: sensor.routinely_current_task
+      - entity: sensor.routinely_time_remaining
+      - entity: sensor.routinely_progress
+      - entity: binary_sensor.routinely_active
+      - entity: binary_sensor.routinely_paused
+      - entity: binary_sensor.routinely_awaiting_input

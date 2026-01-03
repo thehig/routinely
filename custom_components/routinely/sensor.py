@@ -33,6 +33,8 @@ async def async_setup_entry(
         RoutinelyCurrentTaskSensor(coordinator, entry),
         RoutinelyTimeRemainingSensor(coordinator, entry),
         RoutinelyProgressSensor(coordinator, entry),
+        RoutinelyTaskCountSensor(coordinator, entry),
+        RoutinelyRoutineCountSensor(coordinator, entry),
     ]
     async_add_entities(entities)
     _log.debug("Sensor entities registered", count=len(entities))
@@ -171,3 +173,100 @@ class RoutinelyProgressSensor(RoutinelyBaseSensor):
             "skipped_tasks": data.get("skipped_tasks", 0),
             "total_tasks": data.get("total_tasks", 0),
         }
+
+
+class RoutinelyTaskCountSensor(RoutinelyBaseSensor):
+    """Sensor showing number of configured tasks with task list in attributes."""
+
+    _attr_icon = "mdi:format-list-checks"
+
+    def __init__(self, coordinator: RoutinelyCoordinator, entry: ConfigEntry) -> None:
+        """Initialize the task count sensor."""
+        super().__init__(coordinator, entry, "Tasks", "task_count")
+
+    @property
+    def native_value(self) -> int:
+        """Return the number of tasks."""
+        tasks = self.coordinator.storage.get_tasks()
+        return len(tasks)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return task list as attributes."""
+        tasks = self.coordinator.storage.get_tasks()
+        task_list = []
+        for task_id, task in tasks.items():
+            task_list.append({
+                "id": task_id,
+                "name": task.name,
+                "duration": task.duration,
+                "duration_formatted": self._format_duration(task.duration),
+                "icon": task.icon,
+                "mode": task.advancement_mode.value,
+            })
+        return {
+            "tasks": task_list,
+            "task_ids": list(tasks.keys()),
+        }
+
+    @staticmethod
+    def _format_duration(seconds: int) -> str:
+        """Format duration as human readable."""
+        if seconds < 60:
+            return f"{seconds}s"
+        minutes = seconds // 60
+        secs = seconds % 60
+        if secs == 0:
+            return f"{minutes}m"
+        return f"{minutes}m {secs}s"
+
+
+class RoutinelyRoutineCountSensor(RoutinelyBaseSensor):
+    """Sensor showing number of configured routines with routine list in attributes."""
+
+    _attr_icon = "mdi:playlist-check"
+
+    def __init__(self, coordinator: RoutinelyCoordinator, entry: ConfigEntry) -> None:
+        """Initialize the routine count sensor."""
+        super().__init__(coordinator, entry, "Routines", "routine_count")
+
+    @property
+    def native_value(self) -> int:
+        """Return the number of routines."""
+        routines = self.coordinator.storage.get_routines()
+        return len(routines)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return routine list as attributes."""
+        routines = self.coordinator.storage.get_routines()
+        storage = self.coordinator.storage
+        routine_list = []
+        for routine_id, routine in routines.items():
+            duration = storage.calculate_routine_duration(routine)
+            routine_list.append({
+                "id": routine_id,
+                "name": routine.name,
+                "icon": routine.icon,
+                "task_count": len(routine.task_ids),
+                "duration": duration,
+                "duration_formatted": self._format_duration(duration),
+            })
+        return {
+            "routines": routine_list,
+            "routine_ids": list(routines.keys()),
+        }
+
+    @staticmethod
+    def _format_duration(seconds: int) -> str:
+        """Format duration as human readable."""
+        if seconds < 60:
+            return f"{seconds}s"
+        minutes = seconds // 60
+        if minutes < 60:
+            return f"{minutes}m"
+        hours = minutes // 60
+        mins = minutes % 60
+        if mins == 0:
+            return f"{hours}h"
+        return f"{hours}h {mins}m"
