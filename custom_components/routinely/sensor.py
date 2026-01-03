@@ -248,6 +248,7 @@ class RoutinelyRoutineCountSensor(RoutinelyBaseSensor):
                 "id": routine_id,
                 "name": routine.name,
                 "icon": routine.icon,
+                "task_ids": routine.task_ids,
                 "task_count": len(routine.task_ids),
                 "duration": duration,
                 "duration_formatted": self._format_duration(duration),

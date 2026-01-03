@@ -552,16 +552,19 @@ class RoutinelyCard extends HTMLElement {
       .task-selector {
         border: 2px solid var(--divider-color, #ddd);
         border-radius: 12px;
-        max-height: 200px;
+        max-height: 250px;
         overflow-y: auto;
+        background: var(--card-background-color, white);
       }
 
       .task-selector-item {
         display: flex;
         align-items: center;
-        padding: 12px 16px;
+        padding: 14px 16px;
         cursor: pointer;
         border-bottom: 1px solid var(--divider-color, #eee);
+        color: var(--primary-text-color);
+        transition: background 0.15s;
       }
 
       .task-selector-item:last-child {
@@ -569,35 +572,59 @@ class RoutinelyCard extends HTMLElement {
       }
 
       .task-selector-item:hover {
-        background: var(--divider-color, #f5f5f5);
+        background: rgba(var(--rgb-primary-color, 66, 165, 245), 0.1);
       }
 
       .task-selector-item.selected {
-        background: #E3F2FD;
+        background: rgba(var(--rgb-primary-color, 66, 165, 245), 0.2);
       }
 
       .task-selector-checkbox {
-        width: 24px;
-        height: 24px;
+        width: 28px;
+        height: 28px;
         margin-right: 12px;
-        border: 2px solid var(--divider-color, #ddd);
+        border: 2px solid var(--divider-color, #888);
         border-radius: 6px;
         display: flex;
         align-items: center;
         justify-content: center;
+        font-size: 0.9em;
+        color: transparent;
+        flex-shrink: 0;
       }
 
       .task-selector-item.selected .task-selector-checkbox {
-        background: var(--primary-color);
-        border-color: var(--primary-color);
+        background: var(--primary-color, #42A5F5);
+        border-color: var(--primary-color, #42A5F5);
         color: white;
+      }
+
+      .task-selector-label {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .task-selector-label .task-icon {
+        font-size: 1.3em;
+      }
+
+      .task-selector-label .task-name {
+        font-weight: 500;
+      }
+
+      .task-selector-label .task-duration {
+        opacity: 0.6;
+        font-size: 0.9em;
       }
 
       .selected-count {
         text-align: center;
-        padding: 10px;
+        padding: 12px;
         color: var(--secondary-text-color);
-        font-size: 0.9em;
+        font-size: 0.95em;
+        font-weight: 500;
       }
 
       /* === EMOJI PICKER === */
@@ -609,17 +636,23 @@ class RoutinelyCard extends HTMLElement {
       }
 
       .emoji-chip {
-        padding: 8px 12px;
-        border: 1px solid var(--divider-color, #ddd);
-        border-radius: 8px;
-        background: transparent;
+        padding: 10px 14px;
+        border: 2px solid var(--divider-color, #ddd);
+        border-radius: 10px;
+        background: var(--card-background-color, white);
         cursor: pointer;
-        font-size: 1.3em;
+        font-size: 1.4em;
+        transition: transform 0.1s, border-color 0.15s;
       }
 
-      .emoji-chip:hover, .emoji-chip.selected {
-        background: var(--primary-color);
-        border-color: var(--primary-color);
+      .emoji-chip:hover {
+        border-color: var(--primary-color, #42A5F5);
+        transform: scale(1.1);
+      }
+      
+      .emoji-chip.selected {
+        border-color: var(--primary-color, #42A5F5);
+        background: rgba(var(--rgb-primary-color, 66, 165, 245), 0.2);
       }
     `;
   }
@@ -931,8 +964,11 @@ class RoutinelyCard extends HTMLElement {
             ${tasks.map(t => `
               <div class="task-selector-item ${this._selectedTasks.includes(t.id) ? 'selected' : ''}" data-task-id="${t.id}">
                 <div class="task-selector-checkbox">✓</div>
-                <span>${t.icon || '✅'}</span>
-                <span style="margin-left:8px">${this.escapeHtml(t.name)} (${t.duration_formatted})</span>
+                <div class="task-selector-label">
+                  <span class="task-icon">${t.icon || '✅'}</span>
+                  <span class="task-name">${this.escapeHtml(t.name)}</span>
+                  <span class="task-duration">${t.duration_formatted}</span>
+                </div>
               </div>
             `).join('')}
           </div>
