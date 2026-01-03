@@ -37,7 +37,11 @@ class RoutinelyCard extends HTMLElement {
       taskIcon: '',
       routineName: '',
       routineIcon: '',
+      routineTags: [],
+      routineScheduleTime: '',
+      routineScheduleDays: [],
     };
+    this._tagFilter = null; // Active tag filter
   }
 
   setConfig(config) {
@@ -826,6 +830,151 @@ class RoutinelyCard extends HTMLElement {
       .fab:active {
         transform: scale(0.95);
       }
+
+      /* === TAGS === */
+      .tag-container {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        background: rgba(255, 107, 107, 0.15);
+        color: #FF6B6B;
+        border-radius: 16px;
+        font-size: 0.85em;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+
+      .tag:hover {
+        background: rgba(255, 107, 107, 0.25);
+      }
+
+      .tag.selected {
+        background: #FF6B6B;
+        color: white;
+      }
+
+      .tag-input-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .tag-input {
+        flex: 1;
+        padding: 10px 14px;
+        border: 2px solid var(--divider-color, #ddd);
+        border-radius: 10px;
+        font-size: 0.95em;
+        background: var(--card-background-color, white);
+        color: var(--primary-text-color);
+      }
+
+      .tag-add-btn {
+        padding: 10px 16px;
+        background: #FF6B6B;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 500;
+      }
+
+      /* === SCHEDULE === */
+      .schedule-section {
+        background: rgba(66, 165, 245, 0.08);
+        border-radius: 12px;
+        padding: 16px;
+        margin-top: 10px;
+      }
+
+      .schedule-section-title {
+        font-size: 0.9em;
+        font-weight: 600;
+        color: var(--secondary-text-color);
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .day-picker {
+        display: flex;
+        gap: 6px;
+        justify-content: space-between;
+      }
+
+      .day-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 2px solid var(--divider-color, #ddd);
+        background: transparent;
+        cursor: pointer;
+        font-size: 0.8em;
+        font-weight: 600;
+        color: var(--primary-text-color);
+        transition: all 0.15s;
+        text-transform: uppercase;
+      }
+
+      .day-btn:hover {
+        border-color: #42A5F5;
+      }
+
+      .day-btn.selected {
+        background: #42A5F5;
+        border-color: #42A5F5;
+        color: white;
+      }
+
+      .time-input-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .time-input {
+        padding: 10px 14px;
+        border: 2px solid var(--divider-color, #ddd);
+        border-radius: 10px;
+        font-size: 1em;
+        background: var(--card-background-color, white);
+        color: var(--primary-text-color);
+      }
+
+      /* === FILTER BAR === */
+      .filter-bar {
+        display: flex;
+        gap: 8px;
+        padding: 12px 16px;
+        overflow-x: auto;
+        border-bottom: 1px solid var(--divider-color, #eee);
+      }
+
+      .filter-btn {
+        padding: 8px 14px;
+        border-radius: 20px;
+        border: 1px solid var(--divider-color, #ddd);
+        background: transparent;
+        cursor: pointer;
+        font-size: 0.85em;
+        white-space: nowrap;
+        color: var(--primary-text-color);
+      }
+
+      .filter-btn.active {
+        background: #FF6B6B;
+        border-color: #FF6B6B;
+        color: white;
+      }
     `;
   }
 
@@ -914,6 +1063,12 @@ class RoutinelyCard extends HTMLElement {
 
   renderRoutineSelect() {
     const routines = this.getStateAttr('sensor.routinely_routines', 'routines') || [];
+    const allTags = this.getStateAttr('sensor.routinely_routines', 'all_tags') || [];
+    
+    // Filter by tag if set
+    const filteredRoutines = this._tagFilter 
+      ? routines.filter(r => (r.tags || []).includes(this._tagFilter))
+      : routines;
 
     return `
       <div class="welcome">
@@ -921,6 +1076,15 @@ class RoutinelyCard extends HTMLElement {
         <h2>Ready to start?</h2>
         <p>Pick a routine below</p>
       </div>
+
+      ${allTags.length > 0 ? `
+        <div class="filter-bar">
+          <button class="filter-btn ${!this._tagFilter ? 'active' : ''}" data-action="filter-tag" data-tag="">All</button>
+          ${allTags.map(tag => `
+            <button class="filter-btn ${this._tagFilter === tag ? 'active' : ''}" data-action="filter-tag" data-tag="${tag}">${tag}</button>
+          `).join('')}
+        </div>
+      ` : ''}
 
       ${routines.length === 0 ? `
         <div class="empty">
@@ -934,14 +1098,22 @@ class RoutinelyCard extends HTMLElement {
             Create Tasks
           </button>
         </div>
+      ` : filteredRoutines.length === 0 ? `
+        <div class="empty">
+          <div class="empty-icon">🏷️</div>
+          <p>No routines with tag "${this._tagFilter}"</p>
+        </div>
       ` : `
         <div class="routine-list">
-          ${routines.map(r => `
+          ${filteredRoutines.map(r => `
             <div class="routine-item" data-action="review" data-routine-id="${r.id}">
               <span class="routine-icon">${r.icon || '📋'}</span>
               <div class="routine-info">
                 <div class="routine-name">${this.escapeHtml(r.name)}</div>
-                <div class="routine-meta">${r.task_count} tasks · ${r.duration_formatted}</div>
+                <div class="routine-meta">
+                  ${r.task_count} tasks · ${r.duration_formatted}
+                  ${(r.tags || []).length > 0 ? `<span style="opacity: 0.7;"> · ${r.tags.join(', ')}</span>` : ''}
+                </div>
               </div>
               <span class="routine-arrow">▶️</span>
             </div>
@@ -1207,6 +1379,24 @@ class RoutinelyCard extends HTMLElement {
     }
 
     const selectedCount = this._selectedTasks.length;
+    
+    // Calculate duration of selected tasks
+    const selectedDuration = this._selectedTasks
+      .map(tid => tasks.find(t => t.id === tid))
+      .filter(Boolean)
+      .reduce((sum, t) => sum + t.duration, 0);
+    
+    const formatDuration = (secs) => {
+      if (secs < 60) return `${secs}s`;
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return `${mins}m`;
+      const hours = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      return remMins > 0 ? `${hours}h ${remMins}m` : `${hours}h`;
+    };
+
+    const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
     return `
       <div class="form">
@@ -1228,6 +1418,36 @@ class RoutinelyCard extends HTMLElement {
         </div>
 
         <div class="form-group">
+          <label class="form-label">Tags (optional)</label>
+          <div class="tag-container" id="tag-container">
+            ${(f.routineTags || []).map(tag => `
+              <span class="tag selected" data-tag="${tag}">${tag} ✕</span>
+            `).join('')}
+          </div>
+          <div class="tag-input-row">
+            <input type="text" class="tag-input" id="tag-input" placeholder="Add tag...">
+            <button class="tag-add-btn" data-action="add-tag">Add</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Schedule (optional)</label>
+          <div class="schedule-section">
+            <div class="schedule-section-title">Days</div>
+            <div class="day-picker" id="day-picker">
+              ${days.map((day, i) => `
+                <button class="day-btn ${(f.routineScheduleDays || []).includes(day) ? 'selected' : ''}" data-day="${day}">${dayLabels[i]}</button>
+              `).join('')}
+            </div>
+            <div class="time-input-row">
+              <span>Start at:</span>
+              <input type="time" class="time-input" id="schedule-time" value="${f.routineScheduleTime || ''}">
+            </div>
+          </div>
+          <div class="form-hint">💡 Use Home Assistant automations to auto-start routines on schedule</div>
+        </div>
+
+        <div class="form-group">
           <label class="form-label">Select Tasks (tap in order)</label>
           <div class="task-selector" id="task-selector">
             ${tasks.map(t => `
@@ -1241,7 +1461,9 @@ class RoutinelyCard extends HTMLElement {
               </div>
             `).join('')}
           </div>
-          <div class="selected-count" id="selected-count">${selectedCount} task${selectedCount !== 1 ? 's' : ''} selected</div>
+          <div class="selected-count" id="selected-count">
+            ${selectedCount} task${selectedCount !== 1 ? 's' : ''} · ${formatDuration(selectedDuration)}
+          </div>
         </div>
 
         <div class="form-actions">
@@ -1252,6 +1474,8 @@ class RoutinelyCard extends HTMLElement {
           </button>
         </div>
       </div>
+
+      <button class="fab" data-nav="create-task" title="Add Task">➕</button>
     `;
   }
 
@@ -1374,9 +1598,63 @@ class RoutinelyCard extends HTMLElement {
           case 'update-routine':
             this.saveRoutine(true);
             break;
+          case 'filter-tag':
+            this._tagFilter = e.currentTarget.dataset.tag || null;
+            this.render();
+            break;
+          case 'add-tag':
+            this.addTag();
+            break;
         }
       });
     });
+
+    // Tag removal
+    this.shadowRoot.querySelectorAll('.tag.selected').forEach(el => {
+      el.addEventListener('click', (e) => {
+        const tag = e.currentTarget.dataset.tag;
+        const idx = this._formState.routineTags.indexOf(tag);
+        if (idx > -1) {
+          this._formState.routineTags.splice(idx, 1);
+          this.render();
+        }
+      });
+    });
+
+    // Day picker
+    this.shadowRoot.querySelectorAll('.day-btn').forEach(el => {
+      el.addEventListener('click', (e) => {
+        const day = e.currentTarget.dataset.day;
+        const days = this._formState.routineScheduleDays || [];
+        const idx = days.indexOf(day);
+        if (idx > -1) {
+          days.splice(idx, 1);
+        } else {
+          days.push(day);
+        }
+        this._formState.routineScheduleDays = days;
+        e.currentTarget.classList.toggle('selected');
+      });
+    });
+
+    // Schedule time
+    const scheduleTimeInput = this.shadowRoot.getElementById('schedule-time');
+    if (scheduleTimeInput) {
+      scheduleTimeInput.addEventListener('change', (e) => {
+        this._formState.routineScheduleTime = e.target.value;
+      });
+    }
+
+    // Tag input enter key
+    const tagInput = this.shadowRoot.getElementById('tag-input');
+    if (tagInput) {
+      tagInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.addTag();
+        }
+      });
+    }
 
     // Form input change tracking
     const taskNameInput = this.shadowRoot.getElementById('task-name');
@@ -1513,10 +1791,32 @@ class RoutinelyCard extends HTMLElement {
     this._editingId = routineId;
     this._formState.routineName = routine.name;
     this._formState.routineIcon = routine.icon || '';
+    this._formState.routineTags = routine.tags ? [...routine.tags] : [];
+    this._formState.routineScheduleTime = routine.schedule_time || '';
+    this._formState.routineScheduleDays = routine.schedule_days ? [...routine.schedule_days] : [];
     this._selectedTasks = routine.task_ids ? [...routine.task_ids] : [];
     
     this._mode = 'edit-routine';
     this._lastRenderState = null;
+    this.render();
+  }
+
+  addTag() {
+    const input = this.shadowRoot.getElementById('tag-input');
+    if (!input) return;
+    
+    const tag = input.value.trim();
+    if (!tag) return;
+    
+    if (!this._formState.routineTags) {
+      this._formState.routineTags = [];
+    }
+    
+    if (!this._formState.routineTags.includes(tag)) {
+      this._formState.routineTags.push(tag);
+    }
+    
+    input.value = '';
     this.render();
   }
 
@@ -1561,6 +1861,9 @@ class RoutinelyCard extends HTMLElement {
   saveRoutine(isUpdate) {
     const name = this._formState.routineName?.trim() || this.shadowRoot.getElementById('routine-name')?.value?.trim();
     const icon = this._formState.routineIcon?.trim() || this.shadowRoot.getElementById('routine-icon')?.value?.trim();
+    const tags = this._formState.routineTags || [];
+    const scheduleTime = this._formState.routineScheduleTime || null;
+    const scheduleDays = this._formState.routineScheduleDays || [];
 
     if (!name) {
       alert('Please enter a routine name');
@@ -1576,6 +1879,9 @@ class RoutinelyCard extends HTMLElement {
       const data = {
         routine_id: this._editingId,
         routine_name: name,
+        tags: tags,
+        schedule_time: scheduleTime,
+        schedule_days: scheduleDays,
       };
       if (icon) data.icon = icon;
       this.callService('update_routine', data);
@@ -1588,6 +1894,9 @@ class RoutinelyCard extends HTMLElement {
       const data = {
         routine_name: name,
         task_ids: this._selectedTasks,
+        tags: tags,
+        schedule_time: scheduleTime,
+        schedule_days: scheduleDays,
       };
       if (icon) data.icon = icon;
       this.callService('create_routine', data);
@@ -1625,6 +1934,9 @@ class RoutinelyCard extends HTMLElement {
       taskIcon: '',
       routineName: '',
       routineIcon: '',
+      routineTags: [],
+      routineScheduleTime: '',
+      routineScheduleDays: [],
     };
     this._selectedTasks = [];
   }
@@ -1644,6 +1956,6 @@ window.customCards.push({
   preview: true,
 });
 
-console.log('%c ROUTINELY CARD %c v1.3.0 ', 
+console.log('%c ROUTINELY CARD %c v1.4.0 ', 
   'background: #FF6B6B; color: white; font-weight: bold;',
   'background: #66BB6A; color: white;');

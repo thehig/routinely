@@ -80,6 +80,10 @@ class Routine:
     name: str
     icon: str = "mdi:playlist-check"
     task_ids: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    # Schedule fields (for UI display, actual scheduling via HA automations)
+    schedule_time: str | None = None  # e.g., "08:00"
+    schedule_days: list[str] = field(default_factory=list)  # e.g., ["mon", "tue", "wed"]
     created_at: str = ""
     updated_at: str = ""
 
@@ -99,6 +103,9 @@ class Routine:
             name=data["name"],
             icon=data.get("icon", "mdi:playlist-check"),
             task_ids=data.get("task_ids", []),
+            tags=data.get("tags", []),
+            schedule_time=data.get("schedule_time"),
+            schedule_days=data.get("schedule_days", []),
             created_at=data.get("created_at", ""),
             updated_at=data.get("updated_at", ""),
         )
@@ -110,6 +117,9 @@ class Routine:
             "name": self.name,
             "icon": self.icon,
             "task_ids": self.task_ids,
+            "tags": self.tags,
+            "schedule_time": self.schedule_time,
+            "schedule_days": self.schedule_days,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }

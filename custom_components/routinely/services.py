@@ -126,6 +126,9 @@ SCHEMA_CREATE_ROUTINE = vol.Schema(
         ),
         vol.Optional(ATTR_ICON): cv.string,
         vol.Optional(ATTR_TASK_IDS): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("tags"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("schedule_time"): cv.string,
+        vol.Optional("schedule_days"): vol.All(cv.ensure_list, [cv.string]),
     }
 )
 
@@ -136,6 +139,9 @@ SCHEMA_UPDATE_ROUTINE = vol.Schema(
             cv.string, vol.Length(max=MAX_NAME_LENGTH)
         ),
         vol.Optional(ATTR_ICON): cv.string,
+        vol.Optional("tags"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("schedule_time"): cv.string,
+        vol.Optional("schedule_days"): vol.All(cv.ensure_list, [cv.string]),
     }
 )
 
@@ -250,6 +256,9 @@ async def async_setup_services(
             name=call.data[ATTR_ROUTINE_NAME],
             icon=call.data.get(ATTR_ICON, "mdi:playlist-check"),
             task_ids=task_ids,
+            tags=call.data.get("tags", []),
+            schedule_time=call.data.get("schedule_time"),
+            schedule_days=call.data.get("schedule_days", []),
         )
         await storage.async_create_routine(routine)
         _log.info("Created routine", name=routine.name, id=routine.id)
@@ -270,6 +279,12 @@ async def async_setup_services(
             routine.name = call.data[ATTR_ROUTINE_NAME]
         if ATTR_ICON in call.data:
             routine.icon = call.data[ATTR_ICON]
+        if "tags" in call.data:
+            routine.tags = call.data["tags"]
+        if "schedule_time" in call.data:
+            routine.schedule_time = call.data["schedule_time"]
+        if "schedule_days" in call.data:
+            routine.schedule_days = call.data["schedule_days"]
 
         routine.updated_at = datetime.now().isoformat()
         await storage.async_update_routine(routine)
