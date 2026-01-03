@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.7.6 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.7.7 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -1001,7 +1001,13 @@ class RoutinelyCard extends HTMLElement {
         } else {
           this._skippedTaskIds.add(skipTaskId);
         }
+        // Save scroll position before render
+        const reviewList = this.shadowRoot.getElementById('review-task-list');
+        const reviewScrollTop = reviewList ? reviewList.scrollTop : 0;
         this._render();
+        // Restore scroll position after render
+        const newReviewList = this.shadowRoot.getElementById('review-task-list');
+        if (newReviewList) newReviewList.scrollTop = reviewScrollTop;
         break;
       
       case 'confirm-start':
@@ -1105,7 +1111,13 @@ class RoutinelyCard extends HTMLElement {
         } else {
           this._formState.selectedTasks.add(taskId);
         }
+        // Save scroll position before render
+        const taskSelector = this.shadowRoot.getElementById('task-selector');
+        const scrollTop = taskSelector ? taskSelector.scrollTop : 0;
         this._render();
+        // Restore scroll position after render
+        const newTaskSelector = this.shadowRoot.getElementById('task-selector');
+        if (newTaskSelector) newTaskSelector.scrollTop = scrollTop;
         break;
       
       // Tags
@@ -1192,7 +1204,14 @@ class RoutinelyCard extends HTMLElement {
       const temp = this._reviewTasks[idx];
       this._reviewTasks[idx] = this._reviewTasks[newIdx];
       this._reviewTasks[newIdx] = temp;
+      
+      // Save scroll position
+      const reviewList = this.shadowRoot.getElementById('review-task-list');
+      const scrollTop = reviewList ? reviewList.scrollTop : 0;
       this._render();
+      // Restore scroll position
+      const newReviewList = this.shadowRoot.getElementById('review-task-list');
+      if (newReviewList) newReviewList.scrollTop = scrollTop;
       return;
     }
     
@@ -1207,7 +1226,14 @@ class RoutinelyCard extends HTMLElement {
       const temp = this._routineTaskOrder[idx];
       this._routineTaskOrder[idx] = this._routineTaskOrder[newIdx];
       this._routineTaskOrder[newIdx] = temp;
+      
+      // Save scroll position
+      const taskSelector = this.shadowRoot.getElementById('task-selector');
+      const selectorScrollTop = taskSelector ? taskSelector.scrollTop : 0;
       this._render();
+      // Restore scroll position
+      const newTaskSelector = this.shadowRoot.getElementById('task-selector');
+      if (newTaskSelector) newTaskSelector.scrollTop = selectorScrollTop;
     }
   }
 
