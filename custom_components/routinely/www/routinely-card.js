@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.7.2 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.7.3 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -185,15 +185,14 @@ const utils = {
     return `${mins}m ${secs}s`;
   },
   formatAdvancementMode: (mode) => {
-    const modes = { 'manual': 'Manual', 'auto_next': 'Auto', 'auto_complete': 'Auto-Complete', 'confirm_next': 'Confirm' };
+    const modes = { 'manual': 'Manual', 'auto': 'Auto', 'confirm': 'Confirm' };
     return modes[mode] || mode;
   },
   getModeStyle: (mode) => {
     const styles = {
       'manual': 'background: rgba(255, 152, 0, 0.2); color: #FF9800;',
-      'auto_next': 'background: rgba(66, 165, 245, 0.2); color: #42A5F5;',
-      'auto_complete': 'background: rgba(102, 187, 106, 0.2); color: #66BB6A;',
-      'confirm_next': 'background: rgba(171, 71, 188, 0.2); color: #AB47BC;'
+      'auto': 'background: rgba(66, 165, 245, 0.2); color: #42A5F5;',
+      'confirm': 'background: rgba(171, 71, 188, 0.2); color: #AB47BC;'
     };
     return styles[mode] || '';
   },
@@ -702,8 +701,8 @@ class RoutinelyCard extends HTMLElement {
             <label class="form-label">Advancement Mode</label>
             <select class="form-select" id="task-mode">
               <option value="manual" ${this._formState.mode === 'manual' ? 'selected' : ''}>Manual - Tap to complete</option>
-              <option value="auto_next" ${this._formState.mode === 'auto_next' ? 'selected' : ''}>Auto Next - Auto advance when timer ends</option>
-              <option value="confirm_next" ${this._formState.mode === 'confirm_next' ? 'selected' : ''}>Confirm - Ask before advancing</option>
+              <option value="auto" ${this._formState.mode === 'auto' ? 'selected' : ''}>Auto - Auto advance when timer ends</option>
+              <option value="confirm" ${this._formState.mode === 'confirm' ? 'selected' : ''}>Confirm - Ask before advancing</option>
             </select>
             <div class="form-hint">How should the routine advance after this task?</div>
           </div>
