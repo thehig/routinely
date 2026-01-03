@@ -135,13 +135,22 @@ class RoutineEngine:
         """Get the current task being executed."""
         if not self._session:
             return None
-        routine = self.storage.get_routine(self._session.routine_id)
-        if not routine:
-            return None
-        tasks = self.storage.get_routine_tasks(routine)
-        if self._session.current_task_index < len(tasks):
-            return tasks[self._session.current_task_index]
+        # Use session's task_ids for ordering
+        if self._session.current_task_index < len(self._session.task_ids):
+            task_id = self._session.task_ids[self._session.current_task_index]
+            return self.storage.get_task(task_id)
         return None
+    
+    def _get_session_tasks(self) -> list[Task]:
+        """Get tasks for current session in session order."""
+        if not self._session:
+            return []
+        tasks = []
+        for task_id in self._session.task_ids:
+            task = self.storage.get_task(task_id)
+            if task:
+                tasks.append(task)
+        return tasks
 
     def get_time_remaining(self) -> int:
         """Get remaining time for current task in seconds."""
@@ -170,14 +179,20 @@ class RoutineEngine:
         )
         return (completed, skipped, len(self._session.task_states))
 
-    async def start_routine(self, routine_id: str, skip_task_ids: list[str] | None = None) -> bool:
+    async def start_routine(
+        self, 
+        routine_id: str, 
+        skip_task_ids: list[str] | None = None,
+        task_order: list[str] | None = None
+    ) -> bool:
         """Start a routine execution.
         
         Args:
             routine_id: ID of the routine to start
             skip_task_ids: Optional list of task IDs to skip (pre-completed)
+            task_order: Optional custom task order (overrides routine's default order)
         """
-        _log.debug("Start routine requested", routine_id=routine_id, skip_tasks=skip_task_ids)
+        _log.debug("Start routine requested", routine_id=routine_id, skip_tasks=skip_task_ids, task_order=task_order)
         
         if self.is_active:
             _log.warning(
@@ -192,7 +207,23 @@ class RoutineEngine:
             _log.error("Routine not found", routine_id=routine_id)
             return False
 
-        tasks = self.storage.get_routine_tasks(routine)
+        # Get tasks - use custom order if provided
+        if task_order:
+            # Reorder tasks based on provided order
+            all_tasks = {t.id: t for t in self.storage.get_routine_tasks(routine)}
+            tasks = []
+            for tid in task_order:
+                if tid in all_tasks:
+                    tasks.append(all_tasks[tid])
+                else:
+                    _log.warning("Task not found in routine", task_id=tid)
+            # Add any tasks not in task_order at the end
+            for tid, task in all_tasks.items():
+                if tid not in task_order:
+                    tasks.append(task)
+        else:
+            tasks = self.storage.get_routine_tasks(routine)
+        
         if not tasks:
             _log.error("Routine has no tasks", routine_id=routine_id, name=routine.name)
             return False
@@ -202,6 +233,7 @@ class RoutineEngine:
         # Create new session
         now = datetime.now().isoformat()
         task_states = []
+        task_ids = [t.id for t in tasks]  # Store ordered task IDs
         for t in tasks:
             state = TaskState(task_id=t.id)
             if t.id in skip_task_ids:
@@ -215,6 +247,7 @@ class RoutineEngine:
             status=SessionStatus.RUNNING,
             current_task_index=0,
             task_states=task_states,
+            task_ids=task_ids,
             started_at=now,
             elapsed_time=0,
             task_elapsed_time=0,
@@ -543,7 +576,7 @@ class RoutineEngine:
 
         next_index = self._session.current_task_index + 1
         routine = self.storage.get_routine(self._session.routine_id)
-        tasks = self.storage.get_routine_tasks(routine) if routine else []
+        tasks = self._get_session_tasks()
 
         _log.debug(
             "Advancing to next task",
@@ -746,7 +779,7 @@ class RoutineEngine:
             # Check for upcoming task notifications (notify_before)
             # This sends notifications about the NEXT task
             next_task_index = self._session.current_task_index + 1
-            tasks = self.storage.get_routine_tasks(routine) if routine else []
+            tasks = self._get_session_tasks()
             
             # Find next non-skipped task
             while next_task_index < len(tasks):

@@ -238,6 +238,7 @@ class ExecutionSession:
     status: SessionStatus = SessionStatus.IDLE
     current_task_index: int = 0
     task_states: list[TaskState] = field(default_factory=list)
+    task_ids: list[str] = field(default_factory=list)  # Ordered task IDs for this session
     started_at: str | None = None
     paused_at: str | None = None
     completed_at: str | None = None
@@ -256,6 +257,7 @@ class ExecutionSession:
             status=SessionStatus(data.get("status", "idle")),
             current_task_index=data.get("current_task_index", 0),
             task_states=task_states,
+            task_ids=data.get("task_ids", []),
             started_at=data.get("started_at"),
             paused_at=data.get("paused_at"),
             completed_at=data.get("completed_at"),
@@ -273,6 +275,7 @@ class ExecutionSession:
             "status": self.status.value,
             "current_task_index": self.current_task_index,
             "task_states": [ts.to_dict() for ts in self.task_states],
+            "task_ids": self.task_ids,
             "started_at": self.started_at,
             "paused_at": self.paused_at,
             "completed_at": self.completed_at,

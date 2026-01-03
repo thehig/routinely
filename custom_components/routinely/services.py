@@ -140,6 +140,7 @@ SCHEMA_UPDATE_ROUTINE = vol.Schema(
             cv.string, vol.Length(max=MAX_NAME_LENGTH)
         ),
         vol.Optional(ATTR_ICON): cv.string,
+        vol.Optional(ATTR_TASK_IDS): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional("tags"): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional("schedule_time"): vol.Any(cv.string, None),
         vol.Optional("schedule_days"): vol.All(cv.ensure_list, [cv.string]),
@@ -174,6 +175,7 @@ SCHEMA_REORDER_ROUTINE = vol.Schema(
 SCHEMA_START = vol.Schema({
     vol.Required(ATTR_ROUTINE_ID): cv.string,
     vol.Optional("skip_task_ids"): vol.All(cv.ensure_list, [cv.string]),
+    vol.Optional("task_order"): vol.All(cv.ensure_list, [cv.string]),
 })
 
 SCHEMA_SNOOZE = vol.Schema(
@@ -281,6 +283,14 @@ async def async_setup_services(
             routine.name = call.data[ATTR_ROUTINE_NAME]
         if ATTR_ICON in call.data:
             routine.icon = call.data[ATTR_ICON]
+        if ATTR_TASK_IDS in call.data:
+            # Validate task IDs exist
+            task_ids = call.data[ATTR_TASK_IDS]
+            for tid in task_ids:
+                if not storage.get_task(tid):
+                    _log.error("Task not found", task_id=tid)
+                    return
+            routine.task_ids = task_ids
         if "tags" in call.data:
             routine.tags = call.data["tags"]
         if "schedule_time" in call.data:
@@ -386,7 +396,8 @@ async def async_setup_services(
         """Handle start service call."""
         routine_id = call.data[ATTR_ROUTINE_ID]
         skip_task_ids = call.data.get("skip_task_ids")
-        success = await coordinator.start_routine(routine_id, skip_task_ids)
+        task_order = call.data.get("task_order")
+        success = await coordinator.start_routine(routine_id, skip_task_ids, task_order)
         if not success:
             _log.error("Failed to start routine", routine_id=routine_id)
 

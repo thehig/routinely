@@ -211,6 +211,12 @@ update_routine:
       required: false
       selector:
         icon:
+    task_ids:
+      name: Task IDs
+      description: New ordered list of task IDs
+      required: false
+      selector:
+        object:
 
 delete_routine:
   name: Delete Routine
@@ -299,6 +305,13 @@ start:
       description: Optional list of task IDs to skip (pre-completed)
       required: false
       example: ["task_abc123", "task_def456"]
+      selector:
+        object:
+    task_order:
+      name: Task Order
+      description: Optional custom task order (overrides routine's default order)
+      required: false
+      example: ["task_xyz789", "task_abc123", "task_def456"]
       selector:
         object:
 
