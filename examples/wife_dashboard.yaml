@@ -1,0 +1,43 @@
+# =============================================================================
+# ROUTINELY - Wife-Friendly Dashboard (ADHD Optimized)
+# =============================================================================
+#
+# INSTALLATION (2 steps):
+#
+# STEP 1: Add the custom card resource
+#   Go to: Settings → Dashboards → ⋮ (top right) → Resources
+#   Click "Add Resource" and enter:
+#     URL: /local/routinely/routinely-card.js
+#     Type: JavaScript Module
+#
+# STEP 2: Create the dashboard
+#   Go to: Settings → Dashboards → Add Dashboard
+#   Name: "Routines" (or whatever)
+#   Icon: mdi:timer
+#   Then open it → Edit (pencil) → Add Card → Manual → paste below:
+#
+# =============================================================================
+# CARD CONFIG - Copy this into "Manual Card" editor:
+# =============================================================================
+
+type: custom:routinely-card
+
+# That's it! The card handles everything:
+# - Shows routines to start when idle
+# - Shows BIG timer when running
+# - Pause/Resume/Done/Skip buttons
+# - Create tasks tab
+# - Create routines tab
+
+# =============================================================================
+# OR: Full Dashboard YAML (Raw Configuration Editor)
+# =============================================================================
+# If you want to paste into Raw Configuration Editor:
+
+title: Routines
+views:
+  - title: Home
+    path: home
+    type: panel
+    cards:
+      - type: custom:routinely-card

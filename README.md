@@ -188,7 +188,39 @@ automation:
           message: "Starting task ({{ trigger.event.data.duration }}s)"
 ```
 
-## Lovelace Card Example
+## Custom Lovelace Card (Recommended)
+
+Routinely includes a custom card with an **ADHD-friendly** interface designed for:
+- **Minimal cognitive load** - One thing at a time
+- **BIG touch targets** - Easy to tap
+- **Clear visual hierarchy** - Important things are big
+- **Simple navigation** - Three tabs: Start, Tasks, Routines
+
+### Setup
+
+1. **Add the card resource:**
+   - Settings → Dashboards → ⋮ (top right) → Resources
+   - Add Resource
+   - URL: `/local/routinely/routinely-card.js`
+   - Type: JavaScript Module
+
+2. **Create a dashboard:**
+   - Settings → Dashboards → Add Dashboard
+   - Name: "Routines"
+   - Open it → Edit → Add Card → Manual
+
+3. **Add the card:**
+   ```yaml
+   type: custom:routinely-card
+   ```
+
+That's it! The card handles everything:
+- **Start tab**: Pick a routine to start, or view running timer
+- **Tasks tab**: View/create/delete tasks
+- **Routines tab**: View/create/delete routines
+- **Running state**: BIG timer, Pause/Resume/Done/Skip buttons
+
+### Alternative: Basic Cards
 
 ```yaml
 type: vertical-stack

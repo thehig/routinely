@@ -1,0 +1,383 @@
+# =============================================================================
+# ROUTINELY - ADHD-Friendly Dashboard
+# =============================================================================
+# Design Principles Applied:
+# - ONE thing at a time (progressive disclosure)
+# - BIG touch targets (easy to tap)
+# - Clear visual hierarchy (most important = biggest)
+# - Minimal choices (reduce decision fatigue)
+# - Immediate feedback (visual confirmation)
+# - Time awareness (prominent timer)
+# - Calm colors (not overstimulating)
+# - Consistent layout (predictable)
+# =============================================================================
+#
+# INSTALLATION:
+# 1. Go to Settings → Dashboards → Add Dashboard
+# 2. Name it "Routinely" and create
+# 3. Open the new dashboard → Edit → Raw Configuration Editor
+# 4. Replace everything with this file's contents
+# 5. Save
+# =============================================================================
+
+title: Routinely
+views:
+  # =========================================================================
+  # MAIN VIEW - This is the primary interaction screen
+  # =========================================================================
+  - title: Timer
+    path: timer
+    icon: mdi:timer
+    type: panel
+    cards:
+      - type: vertical-stack
+        cards:
+          # === WHEN ROUTINE IS RUNNING ===
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.routinely_active
+                state: "on"
+            card:
+              type: vertical-stack
+              cards:
+                # Current Task - THE FOCUS
+                - type: markdown
+                  style: |
+                    ha-card {
+                      background: {% if is_state('binary_sensor.routinely_paused', 'on') %}#FFA726{% else %}#42A5F5{% endif %};
+                      color: white;
+                      text-align: center;
+                      padding: 20px;
+                    }
+                  content: |
+                    # {{ states('sensor.routinely_current_task') or 'Task' }}
+                
+                # BIG TIMER - Most important visual element
+                - type: markdown
+                  style: |
+                    ha-card {
+                      text-align: center;
+                      font-family: monospace;
+                      padding: 40px 20px;
+                    }
+                  content: |
+                    <div style="font-size: 5em; font-weight: bold; line-height: 1;">
+                    {{ states('sensor.routinely_time_remaining') }}
+                    </div>
+                    <div style="font-size: 1.2em; color: #888; margin-top: 10px;">
+                    {% if is_state('binary_sensor.routinely_paused', 'on') %}⏸️ PAUSED{% else %}⏱️ remaining{% endif %}
+                    </div>
+
+                # Progress - Simple visual
+                - type: custom:bar-card
+                  entity: sensor.routinely_progress
+                  positions:
+                    icon: 'off'
+                    name: 'off'
+                  height: 20px
+                  color: '#42A5F5'
+                  
+                # Fallback if bar-card not installed
+                - type: markdown
+                  content: |
+                    <div style="text-align: center; padding: 10px;">
+                    <strong>{{ states('sensor.routinely_progress') }}%</strong> complete
+                    · Task {{ state_attr('sensor.routinely_status', 'current_task_index') | int + 1 }} of {{ state_attr('sensor.routinely_status', 'total_tasks') }}
+                    </div>
+
+                # === MAIN CONTROLS - BIG BUTTONS ===
+                - type: horizontal-stack
+                  cards:
+                    # PAUSE / RESUME (Primary action)
+                    - type: conditional
+                      conditions:
+                        - entity: binary_sensor.routinely_paused
+                          state: "off"
+                      card:
+                        type: button
+                        name: "PAUSE"
+                        icon: mdi:pause-circle
+                        icon_height: 60px
+                        tap_action:
+                          action: call-service
+                          service: routinely.pause
+                        style: |
+                          ha-card {
+                            background: #FFA726;
+                            color: white;
+                            --mdc-icon-size: 60px;
+                          }
+                    
+                    - type: conditional
+                      conditions:
+                        - entity: binary_sensor.routinely_paused
+                          state: "on"
+                      card:
+                        type: button
+                        name: "RESUME"
+                        icon: mdi:play-circle
+                        icon_height: 60px
+                        tap_action:
+                          action: call-service
+                          service: routinely.resume
+                        style: |
+                          ha-card {
+                            background: #66BB6A;
+                            color: white;
+                          }
+                    
+                    # DONE (Mark complete)
+                    - type: button
+                      name: "DONE"
+                      icon: mdi:check-circle
+                      icon_height: 60px
+                      tap_action:
+                        action: call-service
+                        service: routinely.complete_task
+                      style: |
+                        ha-card {
+                          background: #66BB6A;
+                          color: white;
+                        }
+
+                # Secondary controls - smaller
+                - type: horizontal-stack
+                  cards:
+                    - type: button
+                      name: "Skip"
+                      icon: mdi:skip-next
+                      tap_action:
+                        action: call-service
+                        service: routinely.skip
+                      show_state: false
+                      
+                    - type: button
+                      name: "Stop"
+                      icon: mdi:stop-circle
+                      tap_action:
+                        action: call-service
+                        service: routinely.cancel
+                        confirmation:
+                          text: "Stop this routine?"
+                      show_state: false
+                      style: |
+                        ha-card {
+                          --primary-text-color: #EF5350;
+                        }
+
+                # Routine name (subtle reminder)
+                - type: markdown
+                  content: |
+                    <div style="text-align: center; color: #888; padding: 10px;">
+                    {{ state_attr('sensor.routinely_status', 'routine_name') or 'Routine' }}
+                    </div>
+
+          # === WHEN NO ROUTINE RUNNING ===
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.routinely_active
+                state: "off"
+            card:
+              type: vertical-stack
+              cards:
+                - type: markdown
+                  content: |
+                    <div style="text-align: center; padding: 40px 20px;">
+                    <div style="font-size: 4em;">⏱️</div>
+                    <h2 style="margin: 20px 0 10px 0;">Ready to start?</h2>
+                    <p style="color: #888;">Pick a routine below</p>
+                    </div>
+
+                # Routine buttons - generated from template
+                # Users will need to customize this section with their routines
+                - type: markdown
+                  content: |
+                    ---
+                    ### Your Routines
+                    {% set routines = state_attr('sensor.routinely_routines', 'routines') or [] %}
+                    {% if routines | length == 0 %}
+                    *No routines yet. Go to the **Setup** tab to create one.*
+                    {% else %}
+                    {% for r in routines %}
+                    - **{{ r.name }}** ({{ r.task_count }} tasks, ~{{ r.duration_formatted }}) - ID: `{{ r.id }}`
+                    {% endfor %}
+                    
+                    *Use the buttons below or go to Developer Tools → Services → routinely.start*
+                    {% endif %}
+
+                # Quick start buttons (users customize these)
+                - type: markdown
+                  content: |
+                    <div style="text-align: center; padding: 20px; color: #888; font-size: 0.9em;">
+                    👇 Add start buttons below by editing this dashboard
+                    </div>
+                    
+                # Example start button - CUSTOMIZE THESE
+                # Uncomment and modify with your routine IDs:
+                #
+                # - type: button
+                #   name: "🌅 Morning"
+                #   icon: mdi:weather-sunny
+                #   icon_height: 50px
+                #   tap_action:
+                #     action: call-service
+                #     service: routinely.start
+                #     service_data:
+                #       routine_id: "YOUR_ROUTINE_ID_HERE"
+                
+                - type: horizontal-stack
+                  cards:
+                    - type: button
+                      name: "Setup"
+                      icon: mdi:cog
+                      tap_action:
+                        action: navigate
+                        navigation_path: /routinely/setup
+                      show_state: false
+
+  # =========================================================================
+  # SETUP VIEW - For creating/managing tasks & routines
+  # =========================================================================
+  - title: Setup
+    path: setup
+    icon: mdi:cog
+    cards:
+      # Header
+      - type: markdown
+        content: |
+          ## ⚙️ Setup
+          Create and manage your tasks and routines here.
+
+      # Current inventory
+      - type: horizontal-stack
+        cards:
+          - type: entity
+            entity: sensor.routinely_tasks
+            name: "Tasks"
+            icon: mdi:format-list-checks
+          - type: entity
+            entity: sensor.routinely_routines
+            name: "Routines"
+            icon: mdi:playlist-check
+
+      # === STEP 1: TASKS ===
+      - type: markdown
+        content: |
+          ---
+          ## Step 1: Create Tasks
+          Tasks are the building blocks. Create a few tasks first, then combine them into a routine.
+
+      # Show existing tasks
+      - type: markdown
+        content: |
+          ### Your Tasks
+          {% set tasks = state_attr('sensor.routinely_tasks', 'tasks') or [] %}
+          {% if tasks | length == 0 %}
+          *No tasks yet. Create your first task below!*
+          {% else %}
+          | Name | Duration | Mode | ID |
+          |------|----------|------|-----|
+          {% for t in tasks %}
+          | {{ t.name }} | {{ t.duration_formatted }} | {{ t.mode }} | `{{ t.id }}` |
+          {% endfor %}
+          {% endif %}
+
+      # Task creation helper
+      - type: markdown
+        content: |
+          ### Create a Task
+          Go to **Developer Tools → Services** and use:
+          
+          ```yaml
+          service: routinely.create_task
+          data:
+            task_name: "Brush teeth"
+            duration: 120
+            icon: "mdi:toothbrush"
+            advancement_mode: "auto"
+          ```
+          
+          **Advancement modes:**
+          - `auto` - Timer ends → auto next task
+          - `manual` - Must tap DONE to continue
+          - `confirm` - Asks to continue, auto-advances if no response
+
+      - type: button
+        name: "Open Services"
+        icon: mdi:tools
+        tap_action:
+          action: navigate
+          navigation_path: /developer-tools/service
+        show_state: false
+
+      # === STEP 2: ROUTINES ===
+      - type: markdown
+        content: |
+          ---
+          ## Step 2: Create Routines
+          A routine is a sequence of tasks. Copy the task IDs from above.
+
+      # Show existing routines
+      - type: markdown
+        content: |
+          ### Your Routines
+          {% set routines = state_attr('sensor.routinely_routines', 'routines') or [] %}
+          {% if routines | length == 0 %}
+          *No routines yet. Create one after making some tasks!*
+          {% else %}
+          | Name | Tasks | Duration | ID |
+          |------|-------|----------|-----|
+          {% for r in routines %}
+          | {{ r.name }} | {{ r.task_count }} | {{ r.duration_formatted }} | `{{ r.id }}` |
+          {% endfor %}
+          {% endif %}
+
+      - type: markdown
+        content: |
+          ### Create a Routine
+          ```yaml
+          service: routinely.create_routine
+          data:
+            routine_name: "Morning Routine"
+            icon: "mdi:weather-sunny"
+            task_ids:
+              - "paste_task_id_1"
+              - "paste_task_id_2"
+              - "paste_task_id_3"
+          ```
+
+      # === STEP 3: ADD START BUTTON ===
+      - type: markdown
+        content: |
+          ---
+          ## Step 3: Add Start Button
+          
+          Edit this dashboard (⋮ → Edit → click the Timer view) and add a button:
+          
+          ```yaml
+          type: button
+          name: "🌅 Morning"
+          icon: mdi:weather-sunny
+          icon_height: 50px
+          tap_action:
+            action: call-service
+            service: routinely.start
+            service_data:
+              routine_id: "YOUR_ROUTINE_ID"
+          ```
+          
+          Or start via service:
+          ```yaml
+          service: routinely.start
+          data:
+            routine_id: "YOUR_ROUTINE_ID"
+          ```
+
+      # Back to timer
+      - type: button
+        name: "← Back to Timer"
+        icon: mdi:timer
+        tap_action:
+          action: navigate
+          navigation_path: /routinely/timer
+        show_state: false
