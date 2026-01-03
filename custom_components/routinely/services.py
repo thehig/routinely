@@ -130,6 +130,7 @@ SCHEMA_CREATE_ROUTINE = vol.Schema(
         vol.Optional("tags"): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional("schedule_time"): vol.Any(cv.string, None),
         vol.Optional("schedule_days"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("notification_settings"): vol.Any(dict, None),
     }
 )
 
@@ -255,6 +256,12 @@ async def async_setup_services(
                 _log.error("Task not found", task_id=tid)
                 return
 
+        # Process notification settings if provided
+        notification_settings = None
+        ns_data = call.data.get("notification_settings")
+        if ns_data:
+            notification_settings = NotificationSettings.from_dict(ns_data)
+
         routine = Routine(
             id=generate_id(),
             name=call.data[ATTR_ROUTINE_NAME],
@@ -263,6 +270,7 @@ async def async_setup_services(
             tags=call.data.get("tags", []),
             schedule_time=call.data.get("schedule_time"),
             schedule_days=call.data.get("schedule_days", []),
+            notification_settings=notification_settings,
         )
         await storage.async_create_routine(routine)
         _log.info("Created routine", name=routine.name, id=routine.id)

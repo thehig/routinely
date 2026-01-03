@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.7.3 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.7.4 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -1022,7 +1022,7 @@ class RoutinelyCard extends HTMLElement {
         await this._callService('resume');
         break;
       case 'stop':
-        await this._callService('stop');
+        await this._callService('cancel');
         break;
       
       // Task CRUD
