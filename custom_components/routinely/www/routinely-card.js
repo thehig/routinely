@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.7.0 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.7.1 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -1322,7 +1322,7 @@ class RoutinelyCard extends HTMLElement {
     if (!task) return;
     
     await this._callService('create_task', {
-      name: `${task.name} (copy)`,
+      task_name: `${task.name} (copy)`,
       duration: task.duration,
       icon: task.icon || '📋',
       advancement_mode: task.advancement_mode || 'manual'
@@ -1338,7 +1338,7 @@ class RoutinelyCard extends HTMLElement {
     if (!name) return;
     
     await this._callService('create_task', {
-      name,
+      task_name: name,
       duration,
       icon,
       advancement_mode: mode
@@ -1361,7 +1361,7 @@ class RoutinelyCard extends HTMLElement {
     
     await this._callService('update_task', {
       task_id: this._editingId,
-      name,
+      task_name: name,
       duration,
       icon,
       advancement_mode: mode
@@ -1424,7 +1424,7 @@ class RoutinelyCard extends HTMLElement {
     }
     
     const serviceData = {
-      name,
+      routine_name: name,
       icon,
       task_ids: taskIds,
       tags: this._formState.tags || [],
@@ -1468,7 +1468,7 @@ class RoutinelyCard extends HTMLElement {
     
     const serviceData = {
       routine_id: this._editingId,
-      name,
+      routine_name: name,
       icon,
       task_ids: taskIds,
       tags: this._formState.tags || [],
