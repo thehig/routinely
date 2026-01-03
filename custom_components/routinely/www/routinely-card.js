@@ -2,58 +2,23 @@
  * ROUTINELY - Custom Lovelace Card
  * ADHD-friendly routine management for Home Assistant
  * 
- * Version: 1.6.0
+ * Version: 1.6.1
  * 
- * Modular architecture:
- * - routinely/styles.js - CSS styles
- * - routinely/utils.js - Helper functions
- * - routinely/views.js - View rendering
- * - routinely/drag-drop.js - Drag and drop functionality
+ * Features:
+ * - Drag-and-drop task reordering
+ * - Pre-start review screen
+ * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.6.0 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.6.1 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
-// Import modules dynamically to get base URL
-const currentScript = document.currentScript;
-const baseUrl = currentScript ? currentScript.src.replace(/routinely-card\.js.*$/, '') : '/local/';
+// All code is bundled inline for HACS compatibility
+let modulesLoaded = true;
 
-// Module loading promises
-let modulesLoaded = false;
-let styles = '';
-let utils = {};
-let views = {};
-let DragDropManager = null;
-
-async function loadModules() {
-  if (modulesLoaded) return;
-  
-  try {
-    const [stylesModule, utilsModule, viewsModule, dragDropModule] = await Promise.all([
-      import(`${baseUrl}routinely/styles.js`),
-      import(`${baseUrl}routinely/utils.js`),
-      import(`${baseUrl}routinely/views.js`),
-      import(`${baseUrl}routinely/drag-drop.js`)
-    ]);
-    
-    styles = stylesModule.styles;
-    utils = utilsModule;
-    views = viewsModule;
-    DragDropManager = dragDropModule.DragDropManager;
-    modulesLoaded = true;
-    
-    console.log('Routinely modules loaded successfully');
-  } catch (e) {
-    console.warn('Failed to load external modules, using inline fallbacks:', e);
-    // Fallback to inline definitions if modules fail to load
-    loadInlineFallbacks();
-    modulesLoaded = true;
-  }
-}
-
-// Inline fallbacks in case module loading fails
-function loadInlineFallbacks() {
-  // Minimal styles fallback
-  styles = `
+// =============================================================================
+// STYLES
+// =============================================================================
+const styles = `
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     .card { background: var(--ha-card-background, var(--card-background-color, white)); border-radius: 16px; padding: 20px; min-height: 400px; position: relative; }
     .task-name { font-size: 2em; font-weight: 700; text-align: center; padding: 20px; color: var(--primary-text-color); }
@@ -208,14 +173,278 @@ function loadInlineFallbacks() {
     routineEmojis: ['🌅', '🌙', '☀️', '🏠', '💼', '🧹', '🛏️', '🍽️']
   };
   
-  // DragDropManager fallback
-  DragDropManager = class {
-    constructor(opts) { this.onReorder = opts.onReorder || (() => {}); }
-    init() {}
-    destroy() {}
-    getOrder() { return []; }
-  };
+// =============================================================================
+// DRAG AND DROP MANAGER
+// =============================================================================
+class DragDropManager {
+  constructor(options = {}) {
+    this.container = null;
+    this.items = [];
+    this.draggedItem = null;
+    this.draggedIndex = -1;
+    this.onReorder = options.onReorder || (() => {});
+    this.itemSelector = options.itemSelector || '.draggable-item';
+    this.handleSelector = options.handleSelector || '.drag-handle';
+    
+    this.touchStartY = 0;
+    this.touchCurrentY = 0;
+    this.touchStartX = 0;
+    this.isDragging = false;
+    this.dragClone = null;
+    this.autoScrollInterval = null;
+    this._touchTimeout = null;
+    
+    this._onMouseDown = this._onMouseDown.bind(this);
+    this._onMouseMove = this._onMouseMove.bind(this);
+    this._onMouseUp = this._onMouseUp.bind(this);
+    this._onTouchStart = this._onTouchStart.bind(this);
+    this._onTouchMove = this._onTouchMove.bind(this);
+    this._onTouchEnd = this._onTouchEnd.bind(this);
+  }
+
+  init(container, scrollContainer = null) {
+    this.container = container;
+    this.scrollContainer = scrollContainer || container;
+    if (!container) return;
+    this.destroy();
+
+    const handles = container.querySelectorAll(this.handleSelector);
+    handles.forEach((handle, index) => {
+      handle.addEventListener('mousedown', (e) => this._onMouseDown(e, index));
+      handle.addEventListener('touchstart', (e) => this._onTouchStart(e, index), { passive: false });
+    });
+
+    document.addEventListener('mousemove', this._onMouseMove);
+    document.addEventListener('mouseup', this._onMouseUp);
+    document.addEventListener('touchmove', this._onTouchMove, { passive: false });
+    document.addEventListener('touchend', this._onTouchEnd);
+  }
+
+  destroy() {
+    document.removeEventListener('mousemove', this._onMouseMove);
+    document.removeEventListener('mouseup', this._onMouseUp);
+    document.removeEventListener('touchmove', this._onTouchMove);
+    document.removeEventListener('touchend', this._onTouchEnd);
+    this._stopAutoScroll();
+    this._removeDragClone();
+  }
+
+  getOrder() {
+    if (!this.container) return [];
+    const items = this.container.querySelectorAll(this.itemSelector);
+    return Array.from(items).map(item => item.dataset.id);
+  }
+
+  _onMouseDown(e, index) {
+    e.preventDefault();
+    this._startDrag(index, e.clientY, e.clientX);
+  }
+
+  _onMouseMove(e) {
+    if (!this.isDragging) return;
+    this._updateDrag(e.clientY, e.clientX);
+  }
+
+  _onMouseUp(e) {
+    if (!this.isDragging) return;
+    this._endDrag();
+  }
+
+  _onTouchStart(e, index) {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    this.touchStartY = touch.clientY;
+    this.touchStartX = touch.clientX;
+    
+    this._touchTimeout = setTimeout(() => {
+      e.preventDefault();
+      this._startDrag(index, touch.clientY, touch.clientX);
+      if (navigator.vibrate) navigator.vibrate(50);
+    }, 150);
+  }
+
+  _onTouchMove(e) {
+    if (!this.isDragging) {
+      const touch = e.touches[0];
+      const deltaY = Math.abs(touch.clientY - this.touchStartY);
+      const deltaX = Math.abs(touch.clientX - this.touchStartX);
+      if (deltaY > 10 || deltaX > 10) clearTimeout(this._touchTimeout);
+      return;
+    }
+    e.preventDefault();
+    const touch = e.touches[0];
+    this._updateDrag(touch.clientY, touch.clientX);
+  }
+
+  _onTouchEnd(e) {
+    clearTimeout(this._touchTimeout);
+    if (!this.isDragging) return;
+    this._endDrag();
+  }
+
+  _startDrag(index, clientY, clientX) {
+    const items = this.container.querySelectorAll(this.itemSelector);
+    if (index >= items.length) return;
+
+    this.isDragging = true;
+    this.draggedIndex = index;
+    this.draggedItem = items[index];
+    this.items = Array.from(items);
+    
+    this._createDragClone(this.draggedItem, clientY, clientX);
+    this.draggedItem.classList.add('dragging');
+    this._startAutoScroll();
+  }
+
+  _updateDrag(clientY, clientX) {
+    if (!this.dragClone) return;
+    this.dragClone.style.top = `${clientY - this.dragClone.offsetHeight / 2}px`;
+    this.dragClone.style.left = `${clientX - this.dragClone.offsetWidth / 2}px`;
+
+    const targetIndex = this._getDropIndex(clientY);
+    if (targetIndex !== -1 && targetIndex !== this.draggedIndex) {
+      this._moveToPosition(targetIndex);
+    }
+    this.touchCurrentY = clientY;
+  }
+
+  _endDrag() {
+    this.isDragging = false;
+    this._stopAutoScroll();
+    this._removeDragClone();
+    
+    if (this.draggedItem) {
+      this.draggedItem.classList.remove('dragging');
+    }
+
+    const newOrder = this.getOrder();
+    this.onReorder(newOrder);
+
+    this.draggedItem = null;
+    this.draggedIndex = -1;
+    this.items = [];
+  }
+
+  _getDropIndex(clientY) {
+    const items = this.container.querySelectorAll(this.itemSelector);
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item === this.draggedItem) continue;
+      const rect = item.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (clientY < midY) return i;
+    }
+    return items.length - 1;
+  }
+
+  _moveToPosition(newIndex) {
+    if (newIndex === this.draggedIndex) return;
+    const items = Array.from(this.container.querySelectorAll(this.itemSelector));
+    const targetItem = items[newIndex];
+    if (!targetItem || !this.draggedItem) return;
+
+    if (newIndex < this.draggedIndex) {
+      this.container.insertBefore(this.draggedItem, targetItem);
+    } else {
+      const nextSibling = targetItem.nextSibling;
+      if (nextSibling) {
+        this.container.insertBefore(this.draggedItem, nextSibling);
+      } else {
+        this.container.appendChild(this.draggedItem);
+      }
+    }
+    this.draggedIndex = newIndex;
+  }
+
+  _createDragClone(element, clientY, clientX) {
+    this.dragClone = element.cloneNode(true);
+    this.dragClone.style.cssText = `
+      position: fixed;
+      top: ${clientY - element.offsetHeight / 2}px;
+      left: ${clientX - element.offsetWidth / 2}px;
+      width: ${element.offsetWidth}px;
+      z-index: 10000;
+      pointer-events: none;
+      opacity: 0.9;
+      transform: scale(1.02);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      border-radius: 12px;
+      background: var(--ha-card-background, var(--card-background-color, white));
+    `;
+    document.body.appendChild(this.dragClone);
+  }
+
+  _removeDragClone() {
+    if (this.dragClone && this.dragClone.parentNode) {
+      this.dragClone.parentNode.removeChild(this.dragClone);
+    }
+    this.dragClone = null;
+  }
+
+  _startAutoScroll() {
+    this._stopAutoScroll();
+    this.autoScrollInterval = setInterval(() => {
+      if (!this.isDragging || !this.scrollContainer) return;
+      const containerRect = this.scrollContainer.getBoundingClientRect();
+      const scrollSpeed = 8;
+      const threshold = 60;
+
+      if (this.touchCurrentY < containerRect.top + threshold) {
+        this.scrollContainer.scrollTop -= scrollSpeed;
+      } else if (this.touchCurrentY > containerRect.bottom - threshold) {
+        this.scrollContainer.scrollTop += scrollSpeed;
+      }
+    }, 16);
+  }
+
+  _stopAutoScroll() {
+    if (this.autoScrollInterval) {
+      clearInterval(this.autoScrollInterval);
+      this.autoScrollInterval = null;
+    }
+  }
 }
+
+// =============================================================================
+// UTILITIES
+// =============================================================================
+const utils = {
+  formatTime: (seconds) => {
+    if (seconds === null || seconds === undefined || seconds < 0) return '--:--';
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hrs > 0) return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  },
+  formatDuration: (seconds) => {
+    if (!seconds || seconds <= 0) return '0m';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins === 0) return `${secs}s`;
+    if (secs === 0) return `${mins}m`;
+    return `${mins}m ${secs}s`;
+  },
+  formatAdvancementMode: (mode) => {
+    const modes = { 'manual': 'Manual', 'auto_next': 'Auto', 'auto_complete': 'Auto-Complete', 'confirm_next': 'Confirm' };
+    return modes[mode] || mode;
+  },
+  getModeStyle: (mode) => {
+    const styles = {
+      'manual': 'background: rgba(255, 152, 0, 0.2); color: #FF9800;',
+      'auto_next': 'background: rgba(66, 165, 245, 0.2); color: #42A5F5;',
+      'auto_complete': 'background: rgba(102, 187, 106, 0.2); color: #66BB6A;',
+      'confirm_next': 'background: rgba(171, 71, 188, 0.2); color: #AB47BC;'
+    };
+    return styles[mode] || '';
+  },
+  parseMinutesToArray: (str) => {
+    if (!str || typeof str !== 'string') return [];
+    return str.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0);
+  },
+  taskEmojis: ['📋', '✅', '⏰', '🔔', '📝', '🎯', '💪', '🧘', '🚿', '🦷', '💊', '🍳', '☕', '📚', '💻', '🏃'],
+  routineEmojis: ['🌅', '🌙', '☀️', '🏠', '💼', '🧹', '🛏️', '🍽️', '💪', '🧘', '📚', '🎮', '🚗', '✈️', '🎉', '❤️']
+};
 
 // =============================================================================
 // ROUTINELY CARD CLASS
@@ -255,8 +484,7 @@ class RoutinelyCard extends HTMLElement {
     this._init();
   }
 
-  async _init() {
-    await loadModules();
+  _init() {
     this._render();
   }
 
