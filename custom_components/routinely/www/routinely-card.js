@@ -23,6 +23,18 @@ class RoutinelyCard extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this._mode = 'timer'; // timer | routines | tasks | create-task | create-routine
+    this._lastRenderState = null;
+    this._selectedTasks = [];
+    
+    // Form state preservation
+    this._formState = {
+      taskName: '',
+      taskDuration: '120',
+      taskMode: 'auto',
+      taskIcon: '',
+      routineName: '',
+      routineIcon: '',
+    };
   }
 
   setConfig(config) {
@@ -31,7 +43,38 @@ class RoutinelyCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    
+    // Skip re-render if in form mode (preserve user input)
+    if (this._mode === 'create-task' || this._mode === 'create-routine') {
+      // Only update if routine becomes active (user started one)
+      const isActive = this.isActive();
+      if (isActive) {
+        this._mode = 'timer';
+        this.render();
+      }
+      return;
+    }
+    
+    // For other modes, check if state actually changed
+    const newRenderState = this._getRenderState();
+    if (this._lastRenderState === newRenderState) {
+      return; // No change, skip render
+    }
+    this._lastRenderState = newRenderState;
     this.render();
+  }
+
+  _getRenderState() {
+    // Create a string key of relevant state for comparison
+    const active = this.getStateValue('binary_sensor.routinely_active');
+    const paused = this.getStateValue('binary_sensor.routinely_paused');
+    const timeRemaining = this.getStateValue('sensor.routinely_time_remaining');
+    const currentTask = this.getStateValue('sensor.routinely_current_task');
+    const progress = this.getStateValue('sensor.routinely_progress');
+    const taskCount = this.getStateValue('sensor.routinely_tasks');
+    const routineCount = this.getStateValue('sensor.routinely_routines');
+    
+    return `${this._mode}|${active}|${paused}|${timeRemaining}|${currentTask}|${progress}|${taskCount}|${routineCount}`;
   }
 
   getState(entityId) {
@@ -736,39 +779,42 @@ class RoutinelyCard extends HTMLElement {
   }
 
   renderCreateTask() {
+    const f = this._formState;
+    const dur = parseInt(f.taskDuration) || 120;
+    
     return `
       <div class="form">
         <div class="form-title">➕ New Task</div>
 
         <div class="form-group">
           <label class="form-label">Task Name</label>
-          <input type="text" class="form-input" id="task-name" placeholder="e.g. Brush teeth">
+          <input type="text" class="form-input" id="task-name" placeholder="e.g. Brush teeth" value="${this.escapeAttr(f.taskName)}">
         </div>
 
         <div class="form-group">
           <label class="form-label">Duration (seconds)</label>
-          <input type="number" class="form-input" id="task-duration" placeholder="120" value="120">
+          <input type="number" class="form-input" id="task-duration" placeholder="120" value="${dur}">
           <div class="duration-quick">
-            <button class="duration-chip" data-duration="60">1 min</button>
-            <button class="duration-chip selected" data-duration="120">2 min</button>
-            <button class="duration-chip" data-duration="300">5 min</button>
-            <button class="duration-chip" data-duration="600">10 min</button>
-            <button class="duration-chip" data-duration="900">15 min</button>
+            <button class="duration-chip ${dur === 60 ? 'selected' : ''}" data-duration="60">1 min</button>
+            <button class="duration-chip ${dur === 120 ? 'selected' : ''}" data-duration="120">2 min</button>
+            <button class="duration-chip ${dur === 300 ? 'selected' : ''}" data-duration="300">5 min</button>
+            <button class="duration-chip ${dur === 600 ? 'selected' : ''}" data-duration="600">10 min</button>
+            <button class="duration-chip ${dur === 900 ? 'selected' : ''}" data-duration="900">15 min</button>
           </div>
         </div>
 
         <div class="form-group">
           <label class="form-label">When timer ends</label>
           <select class="form-select" id="task-mode">
-            <option value="auto">Auto → Go to next automatically</option>
-            <option value="manual">Manual → Must tap DONE</option>
-            <option value="confirm">Confirm → Ask, then auto-continue</option>
+            <option value="auto" ${f.taskMode === 'auto' ? 'selected' : ''}>Auto → Go to next automatically</option>
+            <option value="manual" ${f.taskMode === 'manual' ? 'selected' : ''}>Manual → Must tap DONE</option>
+            <option value="confirm" ${f.taskMode === 'confirm' ? 'selected' : ''}>Confirm → Ask, then auto-continue</option>
           </select>
         </div>
 
         <div class="form-group">
           <label class="form-label">Icon (optional)</label>
-          <input type="text" class="form-input" id="task-icon" placeholder="mdi:toothbrush or emoji 🪥">
+          <input type="text" class="form-input" id="task-icon" placeholder="mdi:toothbrush or emoji 🪥" value="${this.escapeAttr(f.taskIcon)}">
           <div class="form-hint">Use mdi:icon-name or emoji</div>
         </div>
 
@@ -785,6 +831,7 @@ class RoutinelyCard extends HTMLElement {
 
   renderCreateRoutine() {
     const tasks = this.getStateAttr('sensor.routinely_tasks', 'tasks') || [];
+    const f = this._formState;
 
     if (tasks.length === 0) {
       return `
@@ -804,32 +851,34 @@ class RoutinelyCard extends HTMLElement {
       `;
     }
 
+    const selectedCount = this._selectedTasks.length;
+
     return `
       <div class="form">
         <div class="form-title">📚 New Routine</div>
 
         <div class="form-group">
           <label class="form-label">Routine Name</label>
-          <input type="text" class="form-input" id="routine-name" placeholder="e.g. Morning Routine">
+          <input type="text" class="form-input" id="routine-name" placeholder="e.g. Morning Routine" value="${this.escapeAttr(f.routineName)}">
         </div>
 
         <div class="form-group">
           <label class="form-label">Icon (optional)</label>
-          <input type="text" class="form-input" id="routine-icon" placeholder="mdi:weather-sunny or emoji 🌅">
+          <input type="text" class="form-input" id="routine-icon" placeholder="mdi:weather-sunny or emoji 🌅" value="${this.escapeAttr(f.routineIcon)}">
         </div>
 
         <div class="form-group">
           <label class="form-label">Select Tasks (in order)</label>
           <div class="task-selector" id="task-selector">
             ${tasks.map(t => `
-              <div class="task-selector-item" data-task-id="${t.id}">
+              <div class="task-selector-item ${this._selectedTasks.includes(t.id) ? 'selected' : ''}" data-task-id="${t.id}">
                 <div class="task-selector-checkbox">✓</div>
                 <span>${t.icon || '✓'}</span>
                 <span style="margin-left:8px">${this.escapeHtml(t.name)} (${t.duration_formatted})</span>
               </div>
             `).join('')}
           </div>
-          <div class="selected-count" id="selected-count">0 tasks selected</div>
+          <div class="selected-count" id="selected-count">${selectedCount} task${selectedCount !== 1 ? 's' : ''} selected</div>
         </div>
 
         <div class="form-actions">
@@ -866,7 +915,16 @@ class RoutinelyCard extends HTMLElement {
     // Navigation
     this.shadowRoot.querySelectorAll('[data-nav]').forEach(el => {
       el.addEventListener('click', (e) => {
-        this._mode = e.currentTarget.dataset.nav;
+        const newMode = e.currentTarget.dataset.nav;
+        
+        // Clear form state when leaving create forms
+        if ((this._mode === 'create-task' || this._mode === 'create-routine') && 
+            newMode !== this._mode) {
+          this._clearFormState();
+        }
+        
+        this._mode = newMode;
+        this._lastRenderState = null; // Force re-render
         this.render();
       });
     });
@@ -918,6 +976,45 @@ class RoutinelyCard extends HTMLElement {
       });
     });
 
+    // Form input change tracking (preserve state)
+    const taskNameInput = this.shadowRoot.getElementById('task-name');
+    const taskDurationInput = this.shadowRoot.getElementById('task-duration');
+    const taskModeSelect = this.shadowRoot.getElementById('task-mode');
+    const taskIconInput = this.shadowRoot.getElementById('task-icon');
+    const routineNameInput = this.shadowRoot.getElementById('routine-name');
+    const routineIconInput = this.shadowRoot.getElementById('routine-icon');
+
+    if (taskNameInput) {
+      taskNameInput.addEventListener('input', (e) => {
+        this._formState.taskName = e.target.value;
+      });
+    }
+    if (taskDurationInput) {
+      taskDurationInput.addEventListener('input', (e) => {
+        this._formState.taskDuration = e.target.value;
+      });
+    }
+    if (taskModeSelect) {
+      taskModeSelect.addEventListener('change', (e) => {
+        this._formState.taskMode = e.target.value;
+      });
+    }
+    if (taskIconInput) {
+      taskIconInput.addEventListener('input', (e) => {
+        this._formState.taskIcon = e.target.value;
+      });
+    }
+    if (routineNameInput) {
+      routineNameInput.addEventListener('input', (e) => {
+        this._formState.routineName = e.target.value;
+      });
+    }
+    if (routineIconInput) {
+      routineIconInput.addEventListener('input', (e) => {
+        this._formState.routineIcon = e.target.value;
+      });
+    }
+
     // Duration chips
     this.shadowRoot.querySelectorAll('.duration-chip').forEach(el => {
       el.addEventListener('click', (e) => {
@@ -925,6 +1022,7 @@ class RoutinelyCard extends HTMLElement {
         const input = this.shadowRoot.getElementById('task-duration');
         if (input) {
           input.value = duration;
+          this._formState.taskDuration = duration;
           this.shadowRoot.querySelectorAll('.duration-chip').forEach(c => c.classList.remove('selected'));
           e.currentTarget.classList.add('selected');
         }
@@ -932,7 +1030,6 @@ class RoutinelyCard extends HTMLElement {
     });
 
     // Task selector for routine creation
-    this._selectedTasks = [];
     this.shadowRoot.querySelectorAll('.task-selector-item').forEach(el => {
       el.addEventListener('click', (e) => {
         const taskId = e.currentTarget.dataset.taskId;
@@ -955,10 +1052,10 @@ class RoutinelyCard extends HTMLElement {
   }
 
   saveTask() {
-    const name = this.shadowRoot.getElementById('task-name')?.value?.trim();
-    const duration = parseInt(this.shadowRoot.getElementById('task-duration')?.value) || 120;
-    const mode = this.shadowRoot.getElementById('task-mode')?.value || 'auto';
-    const icon = this.shadowRoot.getElementById('task-icon')?.value?.trim();
+    const name = this._formState.taskName?.trim() || this.shadowRoot.getElementById('task-name')?.value?.trim();
+    const duration = parseInt(this._formState.taskDuration) || parseInt(this.shadowRoot.getElementById('task-duration')?.value) || 120;
+    const mode = this._formState.taskMode || this.shadowRoot.getElementById('task-mode')?.value || 'auto';
+    const icon = this._formState.taskIcon?.trim() || this.shadowRoot.getElementById('task-icon')?.value?.trim();
 
     if (!name) {
       alert('Please enter a task name');
@@ -976,15 +1073,19 @@ class RoutinelyCard extends HTMLElement {
     }
 
     this.callService('create_task', data);
+    
+    // Clear form and navigate
+    this._clearFormState();
     this._mode = 'tasks';
+    this._lastRenderState = null;
     
     // Give a moment for the service to complete
     setTimeout(() => this.render(), 500);
   }
 
   saveRoutine() {
-    const name = this.shadowRoot.getElementById('routine-name')?.value?.trim();
-    const icon = this.shadowRoot.getElementById('routine-icon')?.value?.trim();
+    const name = this._formState.routineName?.trim() || this.shadowRoot.getElementById('routine-name')?.value?.trim();
+    const icon = this._formState.routineIcon?.trim() || this.shadowRoot.getElementById('routine-icon')?.value?.trim();
 
     if (!name) {
       alert('Please enter a routine name');
@@ -1006,8 +1107,11 @@ class RoutinelyCard extends HTMLElement {
     }
 
     this.callService('create_routine', data);
-    this._selectedTasks = [];
+    
+    // Clear form and navigate
+    this._clearFormState();
     this._mode = 'routines';
+    this._lastRenderState = null;
     
     setTimeout(() => this.render(), 500);
   }
@@ -1016,6 +1120,28 @@ class RoutinelyCard extends HTMLElement {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  escapeAttr(text) {
+    if (!text) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  _clearFormState() {
+    this._formState = {
+      taskName: '',
+      taskDuration: '120',
+      taskMode: 'auto',
+      taskIcon: '',
+      routineName: '',
+      routineIcon: '',
+    };
+    this._selectedTasks = [];
   }
 
   getCardSize() {
