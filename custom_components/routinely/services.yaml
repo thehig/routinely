@@ -1,0 +1,306 @@
+create_task:
+  name: Create Task
+  description: Create a new task
+  fields:
+    task_name:
+      name: Name
+      description: Display name for the task
+      required: true
+      example: "Brush teeth"
+      selector:
+        text:
+    duration:
+      name: Duration
+      description: Task duration in seconds
+      required: true
+      example: 120
+      selector:
+        number:
+          min: 1
+          max: 86400
+          unit_of_measurement: seconds
+          mode: box
+    icon:
+      name: Icon
+      description: MDI icon identifier
+      required: false
+      example: "mdi:toothbrush"
+      selector:
+        icon:
+    advancement_mode:
+      name: Advancement Mode
+      description: How the task advances when timer expires
+      required: false
+      default: auto
+      selector:
+        select:
+          options:
+            - label: Auto
+              value: auto
+            - label: Manual
+              value: manual
+            - label: Confirm
+              value: confirm
+    confirm_window:
+      name: Confirm Window
+      description: Seconds allowed for confirmation (confirm mode only)
+      required: false
+      example: 30
+      selector:
+        number:
+          min: 5
+          max: 300
+          unit_of_measurement: seconds
+          mode: box
+    description:
+      name: Description
+      description: Optional instructions or notes
+      required: false
+      selector:
+        text:
+          multiline: true
+
+update_task:
+  name: Update Task
+  description: Update an existing task
+  fields:
+    task_id:
+      name: Task ID
+      description: ID of the task to update
+      required: true
+      selector:
+        text:
+    task_name:
+      name: Name
+      description: New display name
+      required: false
+      selector:
+        text:
+    duration:
+      name: Duration
+      description: New duration in seconds
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 86400
+          unit_of_measurement: seconds
+          mode: box
+    icon:
+      name: Icon
+      description: New MDI icon
+      required: false
+      selector:
+        icon:
+    advancement_mode:
+      name: Advancement Mode
+      description: New advancement mode
+      required: false
+      selector:
+        select:
+          options:
+            - label: Auto
+              value: auto
+            - label: Manual
+              value: manual
+            - label: Confirm
+              value: confirm
+    confirm_window:
+      name: Confirm Window
+      description: New confirm window duration
+      required: false
+      selector:
+        number:
+          min: 5
+          max: 300
+          unit_of_measurement: seconds
+          mode: box
+    description:
+      name: Description
+      description: New description
+      required: false
+      selector:
+        text:
+          multiline: true
+
+delete_task:
+  name: Delete Task
+  description: Delete a task
+  fields:
+    task_id:
+      name: Task ID
+      description: ID of the task to delete
+      required: true
+      selector:
+        text:
+
+create_routine:
+  name: Create Routine
+  description: Create a new routine
+  fields:
+    routine_name:
+      name: Name
+      description: Display name for the routine
+      required: true
+      example: "Morning Routine"
+      selector:
+        text:
+    icon:
+      name: Icon
+      description: MDI icon identifier
+      required: false
+      example: "mdi:weather-sunny"
+      selector:
+        icon:
+    task_ids:
+      name: Task IDs
+      description: Ordered list of task IDs
+      required: false
+      selector:
+        object:
+
+update_routine:
+  name: Update Routine
+  description: Update an existing routine
+  fields:
+    routine_id:
+      name: Routine ID
+      description: ID of the routine to update
+      required: true
+      selector:
+        text:
+    routine_name:
+      name: Name
+      description: New display name
+      required: false
+      selector:
+        text:
+    icon:
+      name: Icon
+      description: New MDI icon
+      required: false
+      selector:
+        icon:
+
+delete_routine:
+  name: Delete Routine
+  description: Delete a routine
+  fields:
+    routine_id:
+      name: Routine ID
+      description: ID of the routine to delete
+      required: true
+      selector:
+        text:
+
+add_task_to_routine:
+  name: Add Task to Routine
+  description: Add a task to a routine's queue
+  fields:
+    routine_id:
+      name: Routine ID
+      description: ID of the routine
+      required: true
+      selector:
+        text:
+    task_id:
+      name: Task ID
+      description: ID of the task to add
+      required: true
+      selector:
+        text:
+    position:
+      name: Position
+      description: Position in queue (appends to end if not specified)
+      required: false
+      selector:
+        number:
+          min: 0
+          mode: box
+
+remove_task_from_routine:
+  name: Remove Task from Routine
+  description: Remove a task from a routine's queue by position
+  fields:
+    routine_id:
+      name: Routine ID
+      description: ID of the routine
+      required: true
+      selector:
+        text:
+    position:
+      name: Position
+      description: Position in queue to remove (0-based)
+      required: true
+      selector:
+        number:
+          min: 0
+          mode: box
+
+reorder_routine:
+  name: Reorder Routine
+  description: Set a new task order for a routine
+  fields:
+    routine_id:
+      name: Routine ID
+      description: ID of the routine
+      required: true
+      selector:
+        text:
+    task_ids:
+      name: Task IDs
+      description: New ordered list of task IDs
+      required: true
+      selector:
+        object:
+
+start:
+  name: Start Routine
+  description: Start executing a routine
+  fields:
+    routine_id:
+      name: Routine ID
+      description: ID of the routine to start
+      required: true
+      selector:
+        text:
+
+pause:
+  name: Pause
+  description: Pause the active routine
+
+resume:
+  name: Resume
+  description: Resume the paused routine
+
+skip:
+  name: Skip Task
+  description: Skip the current task
+
+complete_task:
+  name: Complete Task
+  description: Manually complete the current task (for manual/confirm mode)
+
+confirm:
+  name: Confirm
+  description: Confirm task completion during confirm window
+
+snooze:
+  name: Snooze
+  description: Snooze the confirm window
+  fields:
+    seconds:
+      name: Seconds
+      description: Additional time to snooze
+      required: false
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 300
+          unit_of_measurement: seconds
+          mode: box
+
+cancel:
+  name: Cancel
+  description: Cancel the active routine

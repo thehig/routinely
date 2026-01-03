@@ -1,0 +1,114 @@
+"""Constants for the Routinely integration."""
+from enum import StrEnum
+from typing import Final
+
+DOMAIN: Final = "routinely"
+STORAGE_VERSION: Final = 1
+STORAGE_KEY: Final = f"{DOMAIN}.storage"
+
+# Defaults
+DEFAULT_TASK_ENDING_WARNING: Final = 10
+DEFAULT_ADVANCEMENT_MODE: Final = "auto"
+DEFAULT_CONFIRM_WINDOW: Final = 30
+DEFAULT_SNOOZE_DURATION: Final = 30
+
+# Limits
+MIN_TASK_DURATION: Final = 1
+MAX_TASK_DURATION: Final = 86400
+MIN_CONFIRM_WINDOW: Final = 5
+MAX_CONFIRM_WINDOW: Final = 300
+MAX_NAME_LENGTH: Final = 100
+MAX_DESCRIPTION_LENGTH: Final = 500
+
+
+class AdvancementMode(StrEnum):
+    """Task advancement modes."""
+
+    AUTO = "auto"
+    MANUAL = "manual"
+    CONFIRM = "confirm"
+
+
+class SessionStatus(StrEnum):
+    """Routine execution session status."""
+
+    IDLE = "idle"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class TaskStatus(StrEnum):
+    """Task status within a session."""
+
+    PENDING = "pending"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    SKIPPED = "skipped"
+
+
+# Events
+EVENT_ROUTINE_STARTED: Final = f"{DOMAIN}_routine_started"
+EVENT_ROUTINE_PAUSED: Final = f"{DOMAIN}_routine_paused"
+EVENT_ROUTINE_RESUMED: Final = f"{DOMAIN}_routine_resumed"
+EVENT_ROUTINE_COMPLETED: Final = f"{DOMAIN}_routine_completed"
+EVENT_ROUTINE_CANCELLED: Final = f"{DOMAIN}_routine_cancelled"
+EVENT_TASK_STARTED: Final = f"{DOMAIN}_task_started"
+EVENT_TASK_ENDING_SOON: Final = f"{DOMAIN}_task_ending_soon"
+EVENT_TASK_COMPLETED: Final = f"{DOMAIN}_task_completed"
+EVENT_TASK_SKIPPED: Final = f"{DOMAIN}_task_skipped"
+EVENT_TASK_AWAITING_INPUT: Final = f"{DOMAIN}_task_awaiting_input"
+
+# Services
+SERVICE_CREATE_TASK: Final = "create_task"
+SERVICE_UPDATE_TASK: Final = "update_task"
+SERVICE_DELETE_TASK: Final = "delete_task"
+SERVICE_CREATE_ROUTINE: Final = "create_routine"
+SERVICE_UPDATE_ROUTINE: Final = "update_routine"
+SERVICE_DELETE_ROUTINE: Final = "delete_routine"
+SERVICE_ADD_TASK_TO_ROUTINE: Final = "add_task_to_routine"
+SERVICE_REMOVE_TASK_FROM_ROUTINE: Final = "remove_task_from_routine"
+SERVICE_REORDER_ROUTINE: Final = "reorder_routine"
+SERVICE_START: Final = "start"
+SERVICE_PAUSE: Final = "pause"
+SERVICE_RESUME: Final = "resume"
+SERVICE_SKIP: Final = "skip"
+SERVICE_COMPLETE_TASK: Final = "complete_task"
+SERVICE_CANCEL: Final = "cancel"
+SERVICE_CONFIRM: Final = "confirm"
+SERVICE_SNOOZE: Final = "snooze"
+
+# Attributes
+ATTR_TASK_ID: Final = "task_id"
+ATTR_TASK_NAME: Final = "task_name"
+ATTR_ROUTINE_ID: Final = "routine_id"
+ATTR_ROUTINE_NAME: Final = "routine_name"
+ATTR_DURATION: Final = "duration"
+ATTR_ICON: Final = "icon"
+ATTR_DESCRIPTION: Final = "description"
+ATTR_ADVANCEMENT_MODE: Final = "advancement_mode"
+ATTR_CONFIRM_WINDOW: Final = "confirm_window"
+ATTR_TASK_IDS: Final = "task_ids"
+ATTR_POSITION: Final = "position"
+ATTR_SECONDS: Final = "seconds"
+ATTR_TOTAL_TASKS: Final = "total_tasks"
+ATTR_COMPLETED_TASKS: Final = "completed_tasks"
+ATTR_SKIPPED_TASKS: Final = "skipped_tasks"
+ATTR_CURRENT_TASK_INDEX: Final = "current_task_index"
+ATTR_CURRENT_TASK_NAME: Final = "current_task_name"
+ATTR_CURRENT_TASK_DURATION: Final = "current_task_duration"
+ATTR_ESTIMATED_DURATION: Final = "estimated_duration"
+ATTR_ELAPSED_TIME: Final = "elapsed_time"
+ATTR_TIME_REMAINING: Final = "time_remaining"
+ATTR_STARTED_AT: Final = "started_at"
+ATTR_WAS_AUTO_ADVANCED: Final = "was_auto_advanced"
+ATTR_ACTUAL_DURATION: Final = "actual_duration"
+ATTR_PROGRESS: Final = "progress"
+
+# Config
+CONF_NOTIFICATION_TARGETS: Final = "notification_targets"
+CONF_TASK_ENDING_WARNING: Final = "task_ending_warning"
+CONF_DEFAULT_ADVANCEMENT_MODE: Final = "default_advancement_mode"
+CONF_ENABLE_TTS: Final = "enable_tts"
+CONF_TTS_ENTITY: Final = "tts_entity"
