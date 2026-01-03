@@ -1,0 +1,224 @@
+# Example Automations for Routinely
+# Add these to your automations.yaml or via the UI
+#
+# NOTE: Notifications with TTS and action buttons are BUILT-IN to Routinely!
+# Configure notification targets in the integration options.
+# The automations below are for ADDITIONAL smart home functionality only.
+
+# ============================================================================
+# SMART SPEAKER TTS ANNOUNCEMENTS
+# ============================================================================
+
+# Announce task start via smart speakers (Google Home, Alexa, etc.)
+- alias: "Routinely: TTS Task Announcement"
+  trigger:
+    - platform: event
+      event_type: routinely_task_started
+  action:
+    - service: tts.speak
+      target:
+        entity_id: tts.google_en_com
+      data:
+        media_player_entity_id: media_player.living_room_speaker
+        message: >-
+          {{ trigger.event.data.task_name }}.
+          {{ (trigger.event.data.duration / 60) | int }} 
+          {% if (trigger.event.data.duration / 60) | int == 1 %}minute{% else %}minutes{% endif %}.
+
+# Announce routine completion
+- alias: "Routinely: TTS Routine Complete"
+  trigger:
+    - platform: event
+      event_type: routinely_routine_completed
+  action:
+    - service: tts.speak
+      target:
+        entity_id: tts.google_en_com
+      data:
+        media_player_entity_id: media_player.living_room_speaker
+        message: >-
+          {{ trigger.event.data.routine_name }} complete!
+          {{ trigger.event.data.tasks_completed }} tasks finished.
+
+# ============================================================================
+# SCHEDULED ROUTINE REMINDERS
+# ============================================================================
+
+# Remind to start morning routine at 7 AM
+- alias: "Routinely: Morning Routine Reminder"
+  trigger:
+    - platform: time
+      at: "07:00:00"
+  condition:
+    - condition: state
+      entity_id: person.your_name
+      state: "home"
+    - condition: state
+      entity_id: binary_sensor.routinely_active
+      state: "off"
+  action:
+    - service: notify.mobile_app_your_phone
+      data:
+        title: "🌅 Morning Routine"
+        message: "Ready to start your morning routine?"
+        data:
+          tag: routinely_reminder
+          actions:
+            - action: START_MORNING_ROUTINE
+              title: "Start Now"
+            - action: DISMISS
+              title: "Not Now"
+
+- alias: "Routinely: Handle Start Morning Routine"
+  trigger:
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: START_MORNING_ROUTINE
+  action:
+    - service: routinely.start
+      data:
+        routine_id: "YOUR_MORNING_ROUTINE_ID"
+
+# ============================================================================
+# SMART HOME INTEGRATION - LIGHTS
+# ============================================================================
+
+# Turn on bathroom lights for hygiene tasks
+- alias: "Routinely: Bathroom Lights On"
+  trigger:
+    - platform: event
+      event_type: routinely_task_started
+  condition:
+    - condition: template
+      value_template: >-
+        {{ 'brush' in trigger.event.data.task_name.lower() 
+           or 'teeth' in trigger.event.data.task_name.lower()
+           or 'shower' in trigger.event.data.task_name.lower() }}
+  action:
+    - service: light.turn_on
+      target:
+        entity_id: light.bathroom
+      data:
+        brightness_pct: 100
+
+# Dim lights for meditation/relaxation tasks
+- alias: "Routinely: Dim Lights for Meditation"
+  trigger:
+    - platform: event
+      event_type: routinely_task_started
+  condition:
+    - condition: template
+      value_template: >-
+        {{ 'meditat' in trigger.event.data.task_name.lower()
+           or 'relax' in trigger.event.data.task_name.lower()
+           or 'breath' in trigger.event.data.task_name.lower() }}
+  action:
+    - service: light.turn_on
+      target:
+        entity_id: light.living_room
+      data:
+        brightness_pct: 20
+        color_temp: 500
+
+# ============================================================================
+# SMART HOME INTEGRATION - MUSIC
+# ============================================================================
+
+# Play focus music during work tasks
+- alias: "Routinely: Play Focus Music"
+  trigger:
+    - platform: event
+      event_type: routinely_task_started
+  condition:
+    - condition: template
+      value_template: >-
+        {{ 'work' in trigger.event.data.task_name.lower()
+           or 'focus' in trigger.event.data.task_name.lower()
+           or 'study' in trigger.event.data.task_name.lower() }}
+  action:
+    - service: media_player.play_media
+      target:
+        entity_id: media_player.office_speaker
+      data:
+        media_content_type: music
+        media_content_id: "spotify:playlist:YOUR_FOCUS_PLAYLIST_ID"
+
+# Stop music when routine completes
+- alias: "Routinely: Stop Music on Complete"
+  trigger:
+    - platform: event
+      event_type: routinely_routine_completed
+  action:
+    - service: media_player.media_stop
+      target:
+        entity_id: media_player.office_speaker
+
+# ============================================================================
+# SMART HOME INTEGRATION - COFFEE MAKER
+# ============================================================================
+
+# Start coffee maker when morning routine starts
+- alias: "Routinely: Start Coffee Maker"
+  trigger:
+    - platform: event
+      event_type: routinely_routine_started
+  condition:
+    - condition: template
+      value_template: "{{ 'morning' in trigger.event.data.routine_name.lower() }}"
+    - condition: time
+      after: "05:00:00"
+      before: "10:00:00"
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.coffee_maker
+
+# ============================================================================
+# STATISTICS & LOGGING
+# ============================================================================
+
+# Log routine completions for statistics
+- alias: "Routinely: Log Completion"
+  trigger:
+    - platform: event
+      event_type: routinely_routine_completed
+  action:
+    - service: logbook.log
+      data:
+        name: "Routinely"
+        message: >-
+          Completed {{ trigger.event.data.routine_name }}: 
+          {{ trigger.event.data.tasks_completed }}/{{ trigger.event.data.tasks_completed + trigger.event.data.tasks_skipped }} tasks 
+          in {{ (trigger.event.data.total_duration / 60) | round(1) }} minutes
+
+# ============================================================================
+# DO NOT DISTURB
+# ============================================================================
+
+# Enable DND on phone during routine (requires companion app)
+- alias: "Routinely: Enable DND"
+  trigger:
+    - platform: event
+      event_type: routinely_routine_started
+  action:
+    - service: notify.mobile_app_your_phone
+      data:
+        message: "command_dnd"
+        data:
+          command: "dnd"
+          dnd_mode: "priority"
+
+- alias: "Routinely: Disable DND"
+  trigger:
+    - platform: event
+      event_type: routinely_routine_completed
+    - platform: event
+      event_type: routinely_routine_cancelled
+  action:
+    - service: notify.mobile_app_your_phone
+      data:
+        message: "command_dnd"
+        data:
+          command: "dnd"
+          dnd_mode: "off"

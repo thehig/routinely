@@ -1,0 +1,141 @@
+# Example Script: Setup Demo Morning Routine
+# Call this script once to create demo tasks and a routine
+# Run via Developer Tools > Services > script.setup_demo_morning_routine
+
+script:
+  setup_demo_morning_routine:
+    alias: "Setup Demo Morning Routine"
+    description: "Creates demo tasks and a morning routine"
+    sequence:
+      # Create Tasks with custom TTS messages
+      - service: routinely.create_task
+        data:
+          task_name: "Wake up & stretch"
+          duration: 60
+          icon: "mdi:bed"
+          advancement_mode: "manual"
+          description: "Gentle stretches to wake up your body"
+          tts_message: "Good morning! Time to wake up and stretch for 1 minute."
+          notification_message: "🌅 Rise and shine! Gentle stretches."
+
+      - delay:
+          milliseconds: 100
+
+      - service: routinely.create_task
+        data:
+          task_name: "Brush teeth"
+          duration: 120
+          icon: "mdi:toothbrush"
+          advancement_mode: "auto"
+          tts_message: "Brush your teeth. 2 minutes."
+          notification_message: "🦷 Brush teeth - 2:00"
+
+      - delay:
+          milliseconds: 100
+
+      - service: routinely.create_task
+        data:
+          task_name: "Shower"
+          duration: 300
+          icon: "mdi:shower"
+          advancement_mode: "confirm"
+          confirm_window: 60
+          description: "5 minute shower"
+          tts_message: "Shower time! 5 minutes."
+          notification_message: "🚿 Shower - 5:00"
+
+      - delay:
+          milliseconds: 100
+
+      - service: routinely.create_task
+        data:
+          task_name: "Get dressed"
+          duration: 180
+          icon: "mdi:tshirt-crew"
+          advancement_mode: "manual"
+          tts_message: "Time to get dressed. 3 minutes."
+
+      - delay:
+          milliseconds: 100
+
+      - service: routinely.create_task
+        data:
+          task_name: "Breakfast"
+          duration: 600
+          icon: "mdi:food-apple"
+          advancement_mode: "confirm"
+          confirm_window: 120
+          description: "Enjoy a healthy breakfast"
+          tts_message: "Breakfast time! Enjoy a healthy meal. 10 minutes."
+          notification_message: "🍳 Breakfast - 10:00"
+
+      - delay:
+          milliseconds: 100
+
+      - service: routinely.create_task
+        data:
+          task_name: "Review daily goals"
+          duration: 120
+          icon: "mdi:clipboard-list"
+          advancement_mode: "manual"
+          description: "Check calendar and to-do list"
+          tts_message: "Review your daily goals and check your calendar. 2 minutes."
+
+      # Note: After running this script, you'll need to:
+      # 1. Get the task IDs from the storage file or by checking the logs
+      # 2. Create the routine with those task IDs using routinely.create_routine
+      #
+      # Alternative: Use the storage file directly or a template sensor to get IDs
+
+  # Quick Start Routine (once you have a routine ID)
+  start_morning:
+    alias: "Start Morning Routine"
+    description: "Starts the morning routine"
+    sequence:
+      - condition: state
+        entity_id: binary_sensor.routinely_active
+        state: "off"
+      - service: routinely.start
+        data:
+          routine_id: "YOUR_ROUTINE_ID_HERE"
+
+# Input helpers for manual routine management
+input_text:
+  routinely_new_task_name:
+    name: "New Task Name"
+    initial: ""
+    max: 100
+
+input_number:
+  routinely_new_task_duration:
+    name: "New Task Duration (minutes)"
+    min: 1
+    max: 60
+    step: 1
+    mode: slider
+    unit_of_measurement: "min"
+
+input_select:
+  routinely_new_task_mode:
+    name: "New Task Advancement Mode"
+    options:
+      - auto
+      - manual
+      - confirm
+    initial: auto
+
+# Script to create task from input helpers
+script:
+  create_task_from_inputs:
+    alias: "Create Task from Inputs"
+    sequence:
+      - service: routinely.create_task
+        data:
+          task_name: "{{ states('input_text.routinely_new_task_name') }}"
+          duration: "{{ states('input_number.routinely_new_task_duration') | int * 60 }}"
+          advancement_mode: "{{ states('input_select.routinely_new_task_mode') }}"
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.routinely_new_task_name
+        data:
+          value: ""
