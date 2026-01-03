@@ -165,10 +165,13 @@ class RoutineEngine:
 
         return max(0, task.duration - self._session.task_elapsed_time)
 
-    def get_progress(self) -> tuple[int, int, int]:
-        """Get progress as (completed, skipped, total)."""
+    def get_progress(self) -> tuple[int, int, int, int]:
+        """Get progress as (completed, skipped, total, active_total).
+        
+        active_total is the number of tasks that weren't pre-skipped in review.
+        """
         if not self._session:
-            return (0, 0, 0)
+            return (0, 0, 0, 0)
         completed = sum(
             1
             for ts in self._session.task_states
@@ -177,7 +180,26 @@ class RoutineEngine:
         skipped = sum(
             1 for ts in self._session.task_states if ts.status == TaskStatus.SKIPPED
         )
-        return (completed, skipped, len(self._session.task_states))
+        # Count tasks that are not pre-skipped (either active, pending, or completed during execution)
+        # Pre-skipped tasks have status SKIPPED but no started_at time
+        active_total = sum(
+            1 for ts in self._session.task_states
+            if ts.status != TaskStatus.SKIPPED or ts.started_at is not None
+        )
+        return (completed, skipped, len(self._session.task_states), active_total)
+    
+    def get_active_task_index(self) -> int:
+        """Get current task index relative to non-pre-skipped tasks only."""
+        if not self._session:
+            return 0
+        # Count how many non-skipped tasks come before current index
+        active_index = 0
+        for i in range(self._session.current_task_index):
+            ts = self._session.task_states[i]
+            # Only count if it wasn't pre-skipped (was started at some point)
+            if ts.status != TaskStatus.SKIPPED or ts.started_at is not None:
+                active_index += 1
+        return active_index
 
     async def start_routine(
         self, 
@@ -590,7 +612,22 @@ class RoutineEngine:
             await self._complete_routine()
             return
 
-        # Move to next task
+        # Move to next task, skipping any pre-skipped tasks
+        while next_index < len(tasks):
+            current_state = self._session.task_states[next_index]
+            # If this task was pre-skipped in review, skip over it
+            if current_state.status == TaskStatus.SKIPPED:
+                _log.debug("Skipping pre-skipped task", task_index=next_index)
+                next_index += 1
+                continue
+            break
+        
+        # Check if we've reached the end
+        if next_index >= len(tasks):
+            _log.debug("All tasks complete (including pre-skipped), finishing routine")
+            await self._complete_routine()
+            return
+        
         self._session.current_task_index = next_index
         self._session.task_elapsed_time = 0
 

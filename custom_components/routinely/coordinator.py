@@ -74,16 +74,17 @@ class RoutinelyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         routine = self.storage.get_routine(session.routine_id)
         task = self.engine.get_current_task()
-        completed, skipped, total = self.engine.get_progress()
+        completed, skipped, total, active_total = self.engine.get_progress()
+        active_task_index = self.engine.get_active_task_index()
         time_remaining = self.engine.get_time_remaining()
 
         progress_percent = 0
-        if total > 0:
-            # Calculate based on completed tasks plus current task progress
+        if active_total > 0:
+            # Calculate based on completed tasks plus current task progress (excluding pre-skipped)
             task_progress = 0
             if task and task.duration > 0:
                 task_progress = min(1.0, session.task_elapsed_time / task.duration)
-            progress_percent = int(((completed + task_progress) / total) * 100)
+            progress_percent = int(((active_task_index + task_progress) / active_total) * 100)
 
         return {
             "active": True,
@@ -91,7 +92,7 @@ class RoutinelyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "routine_id": session.routine_id,
             "routine_name": routine.name if routine else None,
             "routine_icon": routine.icon if routine else None,
-            "current_task_index": session.current_task_index,
+            "current_task_index": active_task_index,
             "current_task_name": task.name if task else None,
             "current_task_icon": task.icon if task else None,
             "current_task_duration": task.duration if task else 0,
@@ -102,7 +103,7 @@ class RoutinelyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "task_elapsed_time": session.task_elapsed_time,
             "completed_tasks": completed,
             "skipped_tasks": skipped,
-            "total_tasks": total,
+            "total_tasks": active_total,
             "progress_percent": progress_percent,
             "confirm_window_active": session.confirm_window_active,
             "started_at": session.started_at,

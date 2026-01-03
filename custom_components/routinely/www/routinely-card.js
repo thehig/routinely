@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.8.0 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.8.1 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -371,18 +371,7 @@ class RoutinelyCard extends HTMLElement {
     
     let actionButtons = '';
     
-    if (awaitingInput) {
-      actionButtons = `
-        <div class="button-row">
-          <button class="btn btn-success btn-large" data-action="complete">
-            <span class="btn-icon">✅</span>Done
-          </button>
-          <button class="btn btn-warning" data-action="skip">
-            <span class="btn-icon">⏭️</span>Skip
-          </button>
-        </div>
-      `;
-    } else if (isPaused) {
+    if (isPaused) {
       actionButtons = `
         <div class="button-row">
           <button class="btn btn-primary btn-large" data-action="resume">
@@ -394,20 +383,21 @@ class RoutinelyCard extends HTMLElement {
         </div>
       `;
     } else {
-      const mainAction = advancementMode === 'manual' 
-        ? `<button class="btn btn-success btn-large" data-action="complete"><span class="btn-icon">✅</span>Done</button>`
-        : `<button class="btn btn-warning btn-large" data-action="pause"><span class="btn-icon">⏸️</span>Pause</button>`;
-      
+      // Always show Pause + Skip (Done and Skip are synonymous)
       actionButtons = `
         <div class="button-row">
-          ${mainAction}
-          <button class="btn btn-secondary" data-action="skip"><span class="btn-icon">⏭️</span>Skip</button>
+          <button class="btn btn-warning btn-large" data-action="pause">
+            <span class="btn-icon">⏸️</span>Pause
+          </button>
+          <button class="btn btn-secondary" data-action="skip">
+            <span class="btn-icon">⏭️</span>Skip
+          </button>
         </div>
       `;
     }
     
     const timerClass = isPaused ? 'timer paused' : 'timer';
-    const statusText = isPaused ? '⏸️ PAUSED' : awaitingInput ? '⏳ WAITING' : '▶️ ACTIVE';
+    const statusText = isPaused ? '⏸️ PAUSED' : '▶️ ACTIVE';
     
     const clampedProgress = Math.min(100, Math.max(0, progressPercent));
     
