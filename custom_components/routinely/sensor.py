@@ -202,7 +202,7 @@ class RoutinelyTaskCountSensor(RoutinelyBaseSensor):
                 "duration": task.duration,
                 "duration_formatted": self._format_duration(task.duration),
                 "icon": task.icon,
-                "mode": task.advancement_mode.value,
+                "advancement_mode": task.advancement_mode.value,
             })
         return {
             "tasks": task_list,
