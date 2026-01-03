@@ -154,7 +154,7 @@ class RoutineEngine:
 
     def get_time_remaining(self) -> int:
         """Get remaining time for current task in seconds."""
-        if not self._session or not self.is_running:
+        if not self._session or not self.is_active:
             return 0
         task = self.get_current_task()
         if not task:
@@ -718,7 +718,7 @@ class RoutineEngine:
             return
 
         routine = self.storage.get_routine(self._session.routine_id)
-        completed, skipped, total = self.get_progress()
+        completed, skipped, total, _active_total = self.get_progress()
 
         history = SessionHistory(
             id=self._session.id,
