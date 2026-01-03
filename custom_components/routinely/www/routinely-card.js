@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.6.2 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.7.0 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -154,245 +154,15 @@ const styles = `
     .fab { position: absolute; bottom: 80px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: #FFD54F; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.8em; transition: transform 0.1s; z-index: 10; }
     .fab:hover { transform: scale(1.1); }
     .fab:active { transform: scale(0.95); }
-    .draggable { cursor: grab; touch-action: none; }
-    .draggable:active { cursor: grabbing; }
-    .draggable.dragging { opacity: 0.5; transform: scale(1.02); box-shadow: 0 8px 24px rgba(0,0,0,0.2); z-index: 100; }
-    .drag-handle { cursor: grab; padding: 8px; margin-right: 8px; opacity: 0.4; font-size: 1.2em; touch-action: none; }
-    .drag-handle:hover { opacity: 0.8; }
-    .draggable-item { display: flex; align-items: center; }
+    .reorder-btns { display: flex; flex-direction: column; gap: 2px; margin-right: 10px; }
+    .reorder-btn { width: 28px; height: 22px; border: 1px solid var(--divider-color, #ddd); background: var(--card-background-color, white); border-radius: 4px; cursor: pointer; font-size: 0.7em; color: var(--primary-text-color); display: flex; align-items: center; justify-content: center; }
+    .reorder-btn:hover:not(.disabled) { background: var(--primary-color, #42A5F5); color: white; border-color: var(--primary-color, #42A5F5); }
+    .reorder-btn.disabled { opacity: 0.3; cursor: not-allowed; }
+    .reorder-btns-small { display: flex; flex-direction: column; gap: 1px; margin-right: 8px; }
+    .reorder-btn-small { width: 22px; height: 18px; border: 1px solid var(--divider-color, #ddd); background: var(--card-background-color, white); border-radius: 3px; cursor: pointer; font-size: 0.6em; color: var(--primary-text-color); display: flex; align-items: center; justify-content: center; padding: 0; }
+    .reorder-btn-small:hover:not(.disabled) { background: var(--primary-color, #42A5F5); color: white; border-color: var(--primary-color, #42A5F5); }
+    .reorder-btn-small.disabled { opacity: 0.3; cursor: not-allowed; }
 `;
-
-// =============================================================================
-// DRAG AND DROP MANAGER
-// =============================================================================
-class DragDropManager {
-  constructor(options = {}) {
-    this.container = null;
-    this.items = [];
-    this.draggedItem = null;
-    this.draggedIndex = -1;
-    this.onReorder = options.onReorder || (() => {});
-    this.itemSelector = options.itemSelector || '.draggable-item';
-    this.handleSelector = options.handleSelector || '.drag-handle';
-    
-    this.touchStartY = 0;
-    this.touchCurrentY = 0;
-    this.touchStartX = 0;
-    this.isDragging = false;
-    this.dragClone = null;
-    this.autoScrollInterval = null;
-    this._touchTimeout = null;
-    
-    this._onMouseDown = this._onMouseDown.bind(this);
-    this._onMouseMove = this._onMouseMove.bind(this);
-    this._onMouseUp = this._onMouseUp.bind(this);
-    this._onTouchStart = this._onTouchStart.bind(this);
-    this._onTouchMove = this._onTouchMove.bind(this);
-    this._onTouchEnd = this._onTouchEnd.bind(this);
-  }
-
-  init(container, scrollContainer = null) {
-    this.container = container;
-    this.scrollContainer = scrollContainer || container;
-    if (!container) return;
-    this.destroy();
-
-    const handles = container.querySelectorAll(this.handleSelector);
-    handles.forEach((handle, index) => {
-      handle.addEventListener('mousedown', (e) => this._onMouseDown(e, index));
-      handle.addEventListener('touchstart', (e) => this._onTouchStart(e, index), { passive: false });
-    });
-
-    document.addEventListener('mousemove', this._onMouseMove);
-    document.addEventListener('mouseup', this._onMouseUp);
-    document.addEventListener('touchmove', this._onTouchMove, { passive: false });
-    document.addEventListener('touchend', this._onTouchEnd);
-  }
-
-  destroy() {
-    document.removeEventListener('mousemove', this._onMouseMove);
-    document.removeEventListener('mouseup', this._onMouseUp);
-    document.removeEventListener('touchmove', this._onTouchMove);
-    document.removeEventListener('touchend', this._onTouchEnd);
-    this._stopAutoScroll();
-    this._removeDragClone();
-  }
-
-  getOrder() {
-    if (!this.container) return [];
-    const items = this.container.querySelectorAll(this.itemSelector);
-    return Array.from(items).map(item => item.dataset.id);
-  }
-
-  _onMouseDown(e, index) {
-    e.preventDefault();
-    this._startDrag(index, e.clientY, e.clientX);
-  }
-
-  _onMouseMove(e) {
-    if (!this.isDragging) return;
-    this._updateDrag(e.clientY, e.clientX);
-  }
-
-  _onMouseUp(e) {
-    if (!this.isDragging) return;
-    this._endDrag();
-  }
-
-  _onTouchStart(e, index) {
-    if (e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    this.touchStartY = touch.clientY;
-    this.touchStartX = touch.clientX;
-    
-    this._touchTimeout = setTimeout(() => {
-      e.preventDefault();
-      this._startDrag(index, touch.clientY, touch.clientX);
-      if (navigator.vibrate) navigator.vibrate(50);
-    }, 150);
-  }
-
-  _onTouchMove(e) {
-    if (!this.isDragging) {
-      const touch = e.touches[0];
-      const deltaY = Math.abs(touch.clientY - this.touchStartY);
-      const deltaX = Math.abs(touch.clientX - this.touchStartX);
-      if (deltaY > 10 || deltaX > 10) clearTimeout(this._touchTimeout);
-      return;
-    }
-    e.preventDefault();
-    const touch = e.touches[0];
-    this._updateDrag(touch.clientY, touch.clientX);
-  }
-
-  _onTouchEnd(e) {
-    clearTimeout(this._touchTimeout);
-    if (!this.isDragging) return;
-    this._endDrag();
-  }
-
-  _startDrag(index, clientY, clientX) {
-    const items = this.container.querySelectorAll(this.itemSelector);
-    if (index >= items.length) return;
-
-    this.isDragging = true;
-    this.draggedIndex = index;
-    this.draggedItem = items[index];
-    this.items = Array.from(items);
-    
-    this._createDragClone(this.draggedItem, clientY, clientX);
-    this.draggedItem.classList.add('dragging');
-    this._startAutoScroll();
-  }
-
-  _updateDrag(clientY, clientX) {
-    if (!this.dragClone) return;
-    this.dragClone.style.top = `${clientY - this.dragClone.offsetHeight / 2}px`;
-    this.dragClone.style.left = `${clientX - this.dragClone.offsetWidth / 2}px`;
-
-    const targetIndex = this._getDropIndex(clientY);
-    if (targetIndex !== -1 && targetIndex !== this.draggedIndex) {
-      this._moveToPosition(targetIndex);
-    }
-    this.touchCurrentY = clientY;
-  }
-
-  _endDrag() {
-    this.isDragging = false;
-    this._stopAutoScroll();
-    this._removeDragClone();
-    
-    if (this.draggedItem) {
-      this.draggedItem.classList.remove('dragging');
-    }
-
-    const newOrder = this.getOrder();
-    this.onReorder(newOrder);
-
-    this.draggedItem = null;
-    this.draggedIndex = -1;
-    this.items = [];
-  }
-
-  _getDropIndex(clientY) {
-    const items = this.container.querySelectorAll(this.itemSelector);
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item === this.draggedItem) continue;
-      const rect = item.getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-      if (clientY < midY) return i;
-    }
-    return items.length - 1;
-  }
-
-  _moveToPosition(newIndex) {
-    if (newIndex === this.draggedIndex) return;
-    const items = Array.from(this.container.querySelectorAll(this.itemSelector));
-    const targetItem = items[newIndex];
-    if (!targetItem || !this.draggedItem) return;
-
-    if (newIndex < this.draggedIndex) {
-      this.container.insertBefore(this.draggedItem, targetItem);
-    } else {
-      const nextSibling = targetItem.nextSibling;
-      if (nextSibling) {
-        this.container.insertBefore(this.draggedItem, nextSibling);
-      } else {
-        this.container.appendChild(this.draggedItem);
-      }
-    }
-    this.draggedIndex = newIndex;
-  }
-
-  _createDragClone(element, clientY, clientX) {
-    this.dragClone = element.cloneNode(true);
-    this.dragClone.style.cssText = `
-      position: fixed;
-      top: ${clientY - element.offsetHeight / 2}px;
-      left: ${clientX - element.offsetWidth / 2}px;
-      width: ${element.offsetWidth}px;
-      z-index: 10000;
-      pointer-events: none;
-      opacity: 0.9;
-      transform: scale(1.02);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-      border-radius: 12px;
-      background: var(--ha-card-background, var(--card-background-color, white));
-    `;
-    document.body.appendChild(this.dragClone);
-  }
-
-  _removeDragClone() {
-    if (this.dragClone && this.dragClone.parentNode) {
-      this.dragClone.parentNode.removeChild(this.dragClone);
-    }
-    this.dragClone = null;
-  }
-
-  _startAutoScroll() {
-    this._stopAutoScroll();
-    this.autoScrollInterval = setInterval(() => {
-      if (!this.isDragging || !this.scrollContainer) return;
-      const containerRect = this.scrollContainer.getBoundingClientRect();
-      const scrollSpeed = 8;
-      const threshold = 60;
-
-      if (this.touchCurrentY < containerRect.top + threshold) {
-        this.scrollContainer.scrollTop -= scrollSpeed;
-      } else if (this.touchCurrentY > containerRect.bottom - threshold) {
-        this.scrollContainer.scrollTop += scrollSpeed;
-      }
-    }, 16);
-  }
-
-  _stopAutoScroll() {
-    if (this.autoScrollInterval) {
-      clearInterval(this.autoScrollInterval);
-      this.autoScrollInterval = null;
-    }
-  }
-}
 
 // =============================================================================
 // UTILITIES
@@ -465,9 +235,6 @@ class RoutinelyCard extends HTMLElement {
     
     // Routine form task order
     this._routineTaskOrder = [];
-    
-    // Drag and drop
-    this._dragManager = null;
     
     // Initialize
     this._init();
@@ -590,70 +357,6 @@ class RoutinelyCard extends HTMLElement {
     `;
     
     this._attachEventListeners();
-    this._initDragDrop();
-  }
-
-  // ==========================================================================
-  // DRAG AND DROP
-  // ==========================================================================
-
-  _initDragDrop() {
-    // Clean up old manager
-    if (this._dragManager) {
-      this._dragManager.destroy();
-    }
-    
-    // Initialize for review screen
-    if (this._mode === 'review') {
-      const container = this.shadowRoot.getElementById('review-task-list');
-      if (container && DragDropManager) {
-        this._dragManager = new DragDropManager({
-          itemSelector: '.review-task',
-          handleSelector: '.drag-handle',
-          onReorder: (newOrder) => this._handleReviewReorder(newOrder)
-        });
-        this._dragManager.init(container);
-      }
-    }
-    
-    // Initialize for routine form task selector
-    if (this._mode === 'create-routine' || this._mode === 'edit-routine') {
-      const container = this.shadowRoot.getElementById('task-selector');
-      if (container && DragDropManager) {
-        this._dragManager = new DragDropManager({
-          itemSelector: '.task-selector-item',
-          handleSelector: '.drag-handle',
-          onReorder: (newOrder) => this._handleRoutineTaskReorder(newOrder)
-        });
-        this._dragManager.init(container);
-      }
-    }
-  }
-
-  _handleReviewReorder(newOrder) {
-    this._reviewTaskOrder = newOrder;
-    // Reorder the tasks array to match
-    const taskMap = new Map(this._reviewTasks.map(t => [t.id, t]));
-    this._reviewTasks = newOrder.map(id => taskMap.get(id)).filter(t => t);
-    this._render();
-  }
-
-  _handleRoutineTaskReorder(newOrder) {
-    this._routineTaskOrder = newOrder;
-    // Update selected tasks order
-    const newSelectedTasks = new Set();
-    newOrder.forEach(id => {
-      if (this._formState.selectedTasks?.has(id)) {
-        newSelectedTasks.add(id);
-      }
-    });
-    // Add any selected tasks not in the order (shouldn't happen, but safety)
-    this._formState.selectedTasks?.forEach(id => {
-      if (!newSelectedTasks.has(id) && newOrder.includes(id)) {
-        newSelectedTasks.add(id);
-      }
-    });
-    this._formState.selectedTasks = newSelectedTasks;
   }
 
   // ==========================================================================
@@ -733,10 +436,7 @@ class RoutinelyCard extends HTMLElement {
             <h2>Welcome to Routinely!</h2>
             <p>Create your first routine to get started</p>
           </div>
-          <div class="nav">
-            <button class="nav-btn" data-tab="tasks"><span class="nav-btn-icon">📋</span>Tasks</button>
-            <button class="nav-btn active" data-tab="routines"><span class="nav-btn-icon">🔄</span>Routines</button>
-          </div>
+          ${this._renderNav('home')}
         </div>
       `;
     }
@@ -781,10 +481,23 @@ class RoutinelyCard extends HTMLElement {
             </div>
           `).join('')}
         </div>
-        <div class="nav">
-          <button class="nav-btn" data-tab="tasks"><span class="nav-btn-icon">📋</span>Tasks</button>
-          <button class="nav-btn active" data-tab="routines"><span class="nav-btn-icon">🔄</span>Routines</button>
-        </div>
+        ${this._renderNav('home')}
+      </div>
+    `;
+  }
+  
+  _renderNav(active) {
+    return `
+      <div class="nav">
+        <button class="nav-btn ${active === 'home' ? 'active' : ''}" data-action="nav-home">
+          <span class="nav-btn-icon">▶️</span>Start
+        </button>
+        <button class="nav-btn ${active === 'tasks' ? 'active' : ''}" data-action="nav-tasks">
+          <span class="nav-btn-icon">📋</span>Tasks
+        </button>
+        <button class="nav-btn ${active === 'routines' ? 'active' : ''}" data-action="nav-routines">
+          <span class="nav-btn-icon">🔄</span>Routines
+        </button>
       </div>
     `;
   }
@@ -807,7 +520,7 @@ class RoutinelyCard extends HTMLElement {
     const totalDuration = includedTasks.reduce((sum, t) => sum + (t.duration || 0), 0);
     
     let runningTime = 0;
-    const taskItems = tasks.map(task => {
+    const taskItems = tasks.map((task, index) => {
       const isSkipped = skippedIds.has(task.id);
       const startOffset = runningTime;
       const endOffset = runningTime + (task.duration || 0);
@@ -818,14 +531,18 @@ class RoutinelyCard extends HTMLElement {
       
       const startTimeStr = this._calcDisplayTime(startTime, startOffset);
       const endTimeStr = this._calcDisplayTime(startTime, endOffset);
+      const isFirst = index === 0;
+      const isLast = index === tasks.length - 1;
       
       return `
-        <div class="review-task ${isSkipped ? 'skipped' : ''} draggable-item" 
-             data-action="toggle-skip" data-task-id="${task.id}" data-id="${task.id}">
-          <span class="drag-handle">⋮⋮</span>
-          <div class="task-checkbox">${isSkipped ? '✓' : ''}</div>
+        <div class="review-task ${isSkipped ? 'skipped' : ''}">
+          <div class="reorder-btns">
+            <button class="reorder-btn ${isFirst ? 'disabled' : ''}" data-action="move-up" data-task-id="${task.id}" ${isFirst ? 'disabled' : ''}>▲</button>
+            <button class="reorder-btn ${isLast ? 'disabled' : ''}" data-action="move-down" data-task-id="${task.id}" ${isLast ? 'disabled' : ''}>▼</button>
+          </div>
+          <div class="task-checkbox" data-action="toggle-skip" data-task-id="${task.id}">${isSkipped ? '✓' : ''}</div>
           <span class="task-icon">${task.icon || '📋'}</span>
-          <div class="task-details">
+          <div class="task-details" data-action="toggle-skip" data-task-id="${task.id}">
             <div class="task-name">${task.name}</div>
             <div class="task-time">${startTimeStr} - ${endTimeStr}</div>
           </div>
@@ -902,10 +619,7 @@ class RoutinelyCard extends HTMLElement {
             </div>
           </div>
         `).join('')}
-        <div class="nav">
-          <button class="nav-btn active" data-tab="tasks"><span class="nav-btn-icon">📋</span>Tasks</button>
-          <button class="nav-btn" data-tab="routines"><span class="nav-btn-icon">🔄</span>Routines</button>
-        </div>
+        ${this._renderNav('tasks')}
       </div>
     `;
   }
@@ -943,10 +657,7 @@ class RoutinelyCard extends HTMLElement {
             </div>
           </div>
         `).join('')}
-        <div class="nav">
-          <button class="nav-btn" data-tab="tasks"><span class="nav-btn-icon">📋</span>Tasks</button>
-          <button class="nav-btn active" data-tab="routines"><span class="nav-btn-icon">🔄</span>Routines</button>
-        </div>
+        ${this._renderNav('routines')}
       </div>
     `;
   }
@@ -1087,16 +798,20 @@ class RoutinelyCard extends HTMLElement {
           </div>
           
           <div class="form-group">
-            <label class="form-label">Tasks (drag to reorder)</label>
+            <label class="form-label">Tasks</label>
             <div class="task-selector" id="task-selector">
-              ${tasks.map(task => {
+              ${tasks.map((task, index) => {
                 const isSelected = this._formState.selectedTasks?.has(task.id);
+                const isFirst = index === 0;
+                const isLast = index === tasks.length - 1;
                 return `
-                  <div class="task-selector-item draggable-item ${isSelected ? 'selected' : ''}" 
-                       data-action="toggle-task" data-task-id="${task.id}" data-id="${task.id}">
-                    <span class="drag-handle">⋮⋮</span>
-                    <div class="task-selector-checkbox">${isSelected ? '✓' : ''}</div>
-                    <div class="task-selector-label">
+                  <div class="task-selector-item ${isSelected ? 'selected' : ''}">
+                    <div class="reorder-btns-small">
+                      <button class="reorder-btn-small ${isFirst ? 'disabled' : ''}" data-action="move-up" data-task-id="${task.id}" ${isFirst ? 'disabled' : ''}>▲</button>
+                      <button class="reorder-btn-small ${isLast ? 'disabled' : ''}" data-action="move-down" data-task-id="${task.id}" ${isLast ? 'disabled' : ''}>▼</button>
+                    </div>
+                    <div class="task-selector-checkbox" data-action="toggle-task" data-task-id="${task.id}">${isSelected ? '✓' : ''}</div>
+                    <div class="task-selector-label" data-action="toggle-task" data-task-id="${task.id}">
                       <span class="task-icon">${task.icon || '📋'}</span>
                       <span class="task-name">${task.name}</span>
                       <span class="task-duration">(${utils.formatDuration(task.duration)})</span>
@@ -1260,15 +975,22 @@ class RoutinelyCard extends HTMLElement {
     
     switch(action) {
       // Navigation
-      case 'tasks':
-      case 'routines':
-        this._mode = action;
+      case 'nav-home':
+        this._mode = 'home';
         this._clearFormState();
         this._render();
         break;
       
-      // Tab nav
-      case 'tab':
+      case 'nav-tasks':
+        this._mode = 'tasks';
+        this._clearFormState();
+        this._render();
+        break;
+      
+      case 'nav-routines':
+        this._mode = 'routines';
+        this._clearFormState();
+        this._render();
         break;
       
       // Routine actions
@@ -1468,12 +1190,45 @@ class RoutinelyCard extends HTMLElement {
         this._formState.notifyOnComplete = !this._formState.notifyOnComplete;
         this._render();
         break;
+      
+      // Move up/down in review and routine editor
+      case 'move-up':
+        this._moveTask(target.dataset.taskId, -1);
+        break;
+      
+      case 'move-down':
+        this._moveTask(target.dataset.taskId, 1);
+        break;
+    }
+  }
+  
+  _moveTask(taskId, direction) {
+    // Handle review screen
+    if (this._mode === 'review' && this._reviewTasks) {
+      const idx = this._reviewTasks.findIndex(t => t.id === taskId);
+      if (idx === -1) return;
+      const newIdx = idx + direction;
+      if (newIdx < 0 || newIdx >= this._reviewTasks.length) return;
+      
+      // Swap
+      const temp = this._reviewTasks[idx];
+      this._reviewTasks[idx] = this._reviewTasks[newIdx];
+      this._reviewTasks[newIdx] = temp;
+      this._render();
+      return;
     }
     
-    // Handle nav tabs
-    if (target.dataset.tab) {
-      this._mode = target.dataset.tab;
-      this._clearFormState();
+    // Handle routine editor
+    if ((this._mode === 'create-routine' || this._mode === 'edit-routine') && this._routineTaskOrder.length > 0) {
+      const idx = this._routineTaskOrder.indexOf(taskId);
+      if (idx === -1) return;
+      const newIdx = idx + direction;
+      if (newIdx < 0 || newIdx >= this._routineTaskOrder.length) return;
+      
+      // Swap
+      const temp = this._routineTaskOrder[idx];
+      this._routineTaskOrder[idx] = this._routineTaskOrder[newIdx];
+      this._routineTaskOrder[newIdx] = temp;
       this._render();
     }
   }
