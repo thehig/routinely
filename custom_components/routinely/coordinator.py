@@ -120,9 +120,14 @@ class RoutinelyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return f"{minutes}:{secs:02d}"
 
     # Expose engine methods
-    async def start_routine(self, routine_id: str) -> bool:
-        """Start a routine."""
-        return await self.engine.start_routine(routine_id)
+    async def start_routine(self, routine_id: str, skip_task_ids: list[str] | None = None) -> bool:
+        """Start a routine.
+        
+        Args:
+            routine_id: ID of the routine to start
+            skip_task_ids: Optional list of task IDs to skip (pre-completed)
+        """
+        return await self.engine.start_routine(routine_id, skip_task_ids)
 
     async def pause(self) -> bool:
         """Pause the active routine."""

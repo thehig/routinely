@@ -204,10 +204,18 @@ class RoutinelyStorage:
         await self.async_save()
 
     # Utility
-    def calculate_routine_duration(self, routine: Routine) -> int:
-        """Calculate total duration of a routine in seconds."""
+    def calculate_routine_duration(self, routine: Routine, skip_task_ids: list[str] | None = None) -> int:
+        """Calculate total duration of a routine in seconds.
+        
+        Args:
+            routine: The routine to calculate duration for
+            skip_task_ids: Optional list of task IDs to exclude from calculation
+        """
+        skip_task_ids = skip_task_ids or []
         total = 0
         for task_id in routine.task_ids:
+            if task_id in skip_task_ids:
+                continue
             task = self.get_task(task_id)
             if task:
                 total += task.duration

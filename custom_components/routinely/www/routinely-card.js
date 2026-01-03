@@ -22,10 +22,12 @@ class RoutinelyCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._mode = 'timer'; // timer | routines | tasks | create-task | create-routine | edit-task | edit-routine
+    this._mode = 'timer'; // timer | routines | tasks | create-task | create-routine | edit-task | edit-routine | review
     this._lastRenderState = null;
     this._selectedTasks = [];
-    this._editingId = null; // ID of task/routine being edited
+    this._editingId = null;
+    this._reviewRoutineId = null;
+    this._skippedTaskIds = []; // Tasks to skip in review
     
     // Form state preservation
     this._formState = {
@@ -45,13 +47,19 @@ class RoutinelyCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     
-    // Skip re-render if in form mode (preserve user input)
+    // Skip re-render if in form/review mode (preserve user input)
     if (this._mode === 'create-task' || this._mode === 'create-routine' || 
-        this._mode === 'edit-task' || this._mode === 'edit-routine') {
+        this._mode === 'edit-task' || this._mode === 'edit-routine' || this._mode === 'review') {
       // Only update if routine becomes active (user started one)
       const isActive = this.isActive();
-      if (isActive) {
+      if (isActive && this._mode !== 'review') {
         this._mode = 'timer';
+        this.render();
+      } else if (isActive && this._mode === 'review') {
+        // Routine started from review, switch to timer
+        this._mode = 'timer';
+        this._reviewRoutineId = null;
+        this._skippedTaskIds = [];
         this.render();
       }
       return;
@@ -60,14 +68,13 @@ class RoutinelyCard extends HTMLElement {
     // For other modes, check if state actually changed
     const newRenderState = this._getRenderState();
     if (this._lastRenderState === newRenderState) {
-      return; // No change, skip render
+      return;
     }
     this._lastRenderState = newRenderState;
     this.render();
   }
 
   _getRenderState() {
-    // Create a string key of relevant state for comparison
     const active = this.getStateValue('binary_sensor.routinely_active');
     const paused = this.getStateValue('binary_sensor.routinely_paused');
     const timeRemaining = this.getStateValue('sensor.routinely_time_remaining');
@@ -132,6 +139,7 @@ class RoutinelyCard extends HTMLElement {
         border-radius: 16px;
         padding: 20px;
         min-height: 400px;
+        position: relative;
       }
 
       /* === TYPOGRAPHY === */
@@ -251,6 +259,11 @@ class RoutinelyCard extends HTMLElement {
       .btn-secondary {
         background: var(--divider-color, #eee);
         color: var(--primary-text-color);
+      }
+
+      .btn-coral {
+        background: linear-gradient(135deg, #FF6B6B, #FF8E8E);
+        color: white;
       }
 
       .btn-large {
@@ -465,6 +478,135 @@ class RoutinelyCard extends HTMLElement {
         color: white;
       }
 
+      /* === REVIEW SCREEN === */
+      .review-header {
+        text-align: center;
+        padding: 16px;
+        border-bottom: 1px solid var(--divider-color, #eee);
+        margin-bottom: 16px;
+      }
+
+      .review-header h2 {
+        margin: 0 0 4px 0;
+        font-size: 1.4em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      .review-header .meta {
+        color: var(--secondary-text-color);
+        font-size: 0.95em;
+      }
+
+      .review-task-list {
+        max-height: 350px;
+        overflow-y: auto;
+        padding: 0 8px;
+      }
+
+      .review-task {
+        display: flex;
+        align-items: center;
+        padding: 14px 16px;
+        margin: 8px 0;
+        background: rgba(255, 107, 107, 0.08);
+        border-radius: 12px;
+        border-left: 4px solid #FF6B6B;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+
+      .review-task:hover {
+        background: rgba(255, 107, 107, 0.15);
+      }
+
+      .review-task.skipped {
+        opacity: 0.5;
+        background: var(--divider-color, #f0f0f0);
+        border-left-color: var(--divider-color, #ccc);
+        text-decoration: line-through;
+      }
+
+      .review-task .task-checkbox {
+        width: 28px;
+        height: 28px;
+        border: 2px solid #FF6B6B;
+        border-radius: 50%;
+        margin-right: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        color: transparent;
+        flex-shrink: 0;
+        transition: all 0.15s;
+      }
+
+      .review-task.skipped .task-checkbox {
+        background: #66BB6A;
+        border-color: #66BB6A;
+        color: white;
+      }
+
+      .review-task .task-icon {
+        font-size: 1.5em;
+        margin-right: 12px;
+      }
+
+      .review-task .task-details {
+        flex: 1;
+      }
+
+      .review-task .task-name {
+        font-weight: 600;
+        font-size: 1.05em;
+        margin-bottom: 2px;
+      }
+
+      .review-task .task-time {
+        font-size: 0.85em;
+        color: var(--secondary-text-color);
+      }
+
+      .review-task .task-duration {
+        font-size: 0.9em;
+        color: var(--secondary-text-color);
+        margin-left: auto;
+        padding-left: 12px;
+      }
+
+      .review-task .task-mode-badge {
+        font-size: 0.7em;
+        padding: 2px 8px;
+        border-radius: 10px;
+        background: rgba(255, 107, 107, 0.2);
+        color: #FF6B6B;
+        margin-left: 8px;
+      }
+
+      .review-summary {
+        padding: 16px;
+        text-align: center;
+        border-top: 1px solid var(--divider-color, #eee);
+        margin-top: 16px;
+        color: var(--secondary-text-color);
+      }
+
+      .review-summary strong {
+        color: var(--primary-text-color);
+      }
+
+      .review-actions {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        position: sticky;
+        bottom: 0;
+        background: var(--ha-card-background, var(--card-background-color, white));
+      }
+
       /* === FORMS === */
       .form {
         padding: 20px;
@@ -534,6 +676,7 @@ class RoutinelyCard extends HTMLElement {
         background: transparent;
         cursor: pointer;
         font-size: 0.9em;
+        color: var(--primary-text-color);
       }
 
       .duration-chip:hover, .duration-chip.selected {
@@ -654,6 +797,35 @@ class RoutinelyCard extends HTMLElement {
         border-color: var(--primary-color, #42A5F5);
         background: rgba(var(--rgb-primary-color, 66, 165, 245), 0.2);
       }
+
+      /* === FAB (Floating Action Button) === */
+      .fab {
+        position: absolute;
+        bottom: 80px;
+        right: 20px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #FFD54F;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8em;
+        transition: transform 0.1s, box-shadow 0.2s;
+        z-index: 10;
+      }
+
+      .fab:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+      }
+
+      .fab:active {
+        transform: scale(0.95);
+      }
     `;
   }
 
@@ -733,6 +905,8 @@ class RoutinelyCard extends HTMLElement {
         return this.renderRoutineForm(false);
       case 'edit-routine':
         return this.renderRoutineForm(true);
+      case 'review':
+        return this.renderReviewScreen();
       default:
         return this.renderRoutineSelect();
     }
@@ -763,7 +937,7 @@ class RoutinelyCard extends HTMLElement {
       ` : `
         <div class="routine-list">
           ${routines.map(r => `
-            <div class="routine-item" data-action="start" data-routine-id="${r.id}">
+            <div class="routine-item" data-action="review" data-routine-id="${r.id}">
               <span class="routine-icon">${r.icon || '📋'}</span>
               <div class="routine-info">
                 <div class="routine-name">${this.escapeHtml(r.name)}</div>
@@ -776,6 +950,99 @@ class RoutinelyCard extends HTMLElement {
       `}
 
       ${this.renderNav('timer')}
+    `;
+  }
+
+  renderReviewScreen() {
+    const routines = this.getStateAttr('sensor.routinely_routines', 'routines') || [];
+    const tasks = this.getStateAttr('sensor.routinely_tasks', 'tasks') || [];
+    const routine = routines.find(r => r.id === this._reviewRoutineId);
+    
+    if (!routine) {
+      this._mode = 'timer';
+      return this.renderRoutineSelect();
+    }
+
+    // Get tasks for this routine
+    const routineTasks = (routine.task_ids || [])
+      .map(tid => tasks.find(t => t.id === tid))
+      .filter(Boolean);
+
+    // Calculate times
+    let currentTime = new Date();
+    const startTime = new Date(currentTime);
+    const taskTimes = routineTasks.map(task => {
+      const start = new Date(currentTime);
+      const end = new Date(currentTime.getTime() + task.duration * 1000);
+      currentTime = end;
+      return { start, end, task };
+    });
+
+    // Calculate total duration excluding skipped
+    const totalDuration = routineTasks
+      .filter(t => !this._skippedTaskIds.includes(t.id))
+      .reduce((sum, t) => sum + t.duration, 0);
+    
+    const activeTaskCount = routineTasks.length - this._skippedTaskIds.length;
+    const endTime = new Date(startTime.getTime() + totalDuration * 1000);
+
+    const formatTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const formatDuration = (secs) => {
+      if (secs < 60) return `${secs}s`;
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return `${mins}m`;
+      const hours = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      return remMins > 0 ? `${hours}h ${remMins}m` : `${hours}h`;
+    };
+
+    return `
+      <div class="review-header">
+        <h2>${routine.icon || '📋'} ${this.escapeHtml(routine.name)}</h2>
+        <div class="meta">
+          ${formatTime(startTime)} → ${formatTime(endTime)} · ${formatDuration(totalDuration)}
+        </div>
+      </div>
+
+      <div style="padding: 0 16px; margin-bottom: 8px; color: var(--secondary-text-color); font-size: 0.9em;">
+        Tap tasks you've already done to skip them:
+      </div>
+
+      <div class="review-task-list">
+        ${taskTimes.map(({ start, end, task }, index) => {
+          const isSkipped = this._skippedTaskIds.includes(task.id);
+          const modeLabel = task.mode === 'auto' ? '' : task.mode === 'manual' ? 'Manual' : 'Confirm';
+          return `
+            <div class="review-task ${isSkipped ? 'skipped' : ''}" data-task-id="${task.id}" data-action="toggle-skip">
+              <div class="task-checkbox">✓</div>
+              <span class="task-icon">${task.icon || '✅'}</span>
+              <div class="task-details">
+                <div class="task-name">${this.escapeHtml(task.name)}</div>
+                <div class="task-time">${formatTime(start)} - ${formatTime(end)}</div>
+              </div>
+              ${modeLabel ? `<span class="task-mode-badge">${modeLabel}</span>` : ''}
+              <span class="task-duration">${task.duration_formatted}</span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <div class="review-summary">
+        ${this._skippedTaskIds.length > 0 
+          ? `<strong>${activeTaskCount}</strong> of ${routineTasks.length} tasks · ${this._skippedTaskIds.length} skipped`
+          : `<strong>${routineTasks.length}</strong> tasks · ${formatDuration(totalDuration)}`
+        }
+      </div>
+
+      <div class="review-actions">
+        <button class="btn btn-secondary" data-nav="timer" style="flex: 1;">
+          ← Back
+        </button>
+        <button class="btn btn-coral" data-action="start-routine" style="flex: 2;">
+          <span class="btn-icon">▶️</span>
+          Start Routine
+        </button>
+      </div>
     `;
   }
 
@@ -806,6 +1073,7 @@ class RoutinelyCard extends HTMLElement {
               <div class="item-meta">${t.duration_formatted} · ${t.mode}</div>
             </div>
             <div class="item-actions">
+              <button class="item-btn" data-action="copy-task" data-task-id="${t.id}" title="Copy">📋</button>
               <button class="item-btn" data-action="edit-task" data-task-id="${t.id}" title="Edit">✏️</button>
               <button class="item-btn delete" data-action="delete-task" data-task-id="${t.id}" title="Delete">🗑️</button>
             </div>
@@ -875,11 +1143,12 @@ class RoutinelyCard extends HTMLElement {
           <label class="form-label">Duration</label>
           <input type="number" class="form-input" id="task-duration" placeholder="120" value="${dur}">
           <div class="duration-quick">
-            <button class="duration-chip ${dur === 60 ? 'selected' : ''}" data-duration="60">1 min</button>
-            <button class="duration-chip ${dur === 120 ? 'selected' : ''}" data-duration="120">2 min</button>
-            <button class="duration-chip ${dur === 300 ? 'selected' : ''}" data-duration="300">5 min</button>
-            <button class="duration-chip ${dur === 600 ? 'selected' : ''}" data-duration="600">10 min</button>
-            <button class="duration-chip ${dur === 900 ? 'selected' : ''}" data-duration="900">15 min</button>
+            <button class="duration-chip ${dur === 30 ? 'selected' : ''}" data-duration="30">30s</button>
+            <button class="duration-chip ${dur === 60 ? 'selected' : ''}" data-duration="60">1m</button>
+            <button class="duration-chip ${dur === 120 ? 'selected' : ''}" data-duration="120">2m</button>
+            <button class="duration-chip ${dur === 300 ? 'selected' : ''}" data-duration="300">5m</button>
+            <button class="duration-chip ${dur === 600 ? 'selected' : ''}" data-duration="600">10m</button>
+            <button class="duration-chip ${dur === 900 ? 'selected' : ''}" data-duration="900">15m</button>
           </div>
         </div>
 
@@ -1011,15 +1280,17 @@ class RoutinelyCard extends HTMLElement {
       el.addEventListener('click', (e) => {
         const newMode = e.currentTarget.dataset.nav;
         
-        // Clear form state when leaving create/edit forms
-        if ((this._mode.startsWith('create-') || this._mode.startsWith('edit-')) && 
-            !newMode.startsWith('create-') && !newMode.startsWith('edit-')) {
+        // Clear state when leaving create/edit/review
+        if ((this._mode.startsWith('create-') || this._mode.startsWith('edit-') || this._mode === 'review') && 
+            !newMode.startsWith('create-') && !newMode.startsWith('edit-') && newMode !== 'review') {
           this._clearFormState();
           this._editingId = null;
+          this._reviewRoutineId = null;
+          this._skippedTaskIds = [];
         }
         
         this._mode = newMode;
-        this._lastRenderState = null; // Force re-render
+        this._lastRenderState = null;
         this.render();
       });
     });
@@ -1033,8 +1304,29 @@ class RoutinelyCard extends HTMLElement {
         if (confirm && !window.confirm(confirm)) return;
 
         switch (action) {
-          case 'start':
-            this.callService('start', { routine_id: e.currentTarget.dataset.routineId });
+          case 'review':
+            this._reviewRoutineId = e.currentTarget.dataset.routineId;
+            this._skippedTaskIds = [];
+            this._mode = 'review';
+            this._lastRenderState = null;
+            this.render();
+            break;
+          case 'toggle-skip':
+            const taskId = e.currentTarget.dataset.taskId;
+            const idx = this._skippedTaskIds.indexOf(taskId);
+            if (idx > -1) {
+              this._skippedTaskIds.splice(idx, 1);
+            } else {
+              this._skippedTaskIds.push(taskId);
+            }
+            this.render();
+            break;
+          case 'start-routine':
+            const skipIds = this._skippedTaskIds.length > 0 ? this._skippedTaskIds : undefined;
+            this.callService('start', { 
+              routine_id: this._reviewRoutineId,
+              skip_task_ids: skipIds
+            });
             break;
           case 'pause':
             this.callService('pause');
@@ -1053,6 +1345,9 @@ class RoutinelyCard extends HTMLElement {
             break;
           case 'edit-task':
             this.startEditTask(e.currentTarget.dataset.taskId);
+            break;
+          case 'copy-task':
+            this.copyTask(e.currentTarget.dataset.taskId);
             break;
           case 'edit-routine':
             this.startEditRoutine(e.currentTarget.dataset.routineId);
@@ -1083,7 +1378,7 @@ class RoutinelyCard extends HTMLElement {
       });
     });
 
-    // Form input change tracking (preserve state)
+    // Form input change tracking
     const taskNameInput = this.shadowRoot.getElementById('task-name');
     const taskDurationInput = this.shadowRoot.getElementById('task-duration');
     const taskModeSelect = this.shadowRoot.getElementById('task-mode');
@@ -1195,6 +1490,21 @@ class RoutinelyCard extends HTMLElement {
     this.render();
   }
 
+  copyTask(taskId) {
+    const tasks = this.getStateAttr('sensor.routinely_tasks', 'tasks') || [];
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const data = {
+      task_name: task.name + ' (copy)',
+      duration: task.duration,
+      advancement_mode: task.mode,
+    };
+    if (task.icon) data.icon = task.icon;
+    
+    this.callService('create_task', data);
+  }
+
   startEditRoutine(routineId) {
     const routines = this.getStateAttr('sensor.routinely_routines', 'routines') || [];
     const routine = routines.find(r => r.id === routineId);
@@ -1240,7 +1550,6 @@ class RoutinelyCard extends HTMLElement {
       this.callService('create_task', data);
     }
     
-    // Clear form and navigate
     this._clearFormState();
     this._editingId = null;
     this._mode = 'tasks';
@@ -1264,7 +1573,6 @@ class RoutinelyCard extends HTMLElement {
     }
 
     if (isUpdate && this._editingId) {
-      // Update name/icon
       const data = {
         routine_id: this._editingId,
         routine_name: name,
@@ -1272,7 +1580,6 @@ class RoutinelyCard extends HTMLElement {
       if (icon) data.icon = icon;
       this.callService('update_routine', data);
       
-      // Reorder tasks
       this.callService('reorder_routine', {
         routine_id: this._editingId,
         task_ids: this._selectedTasks,
@@ -1286,7 +1593,6 @@ class RoutinelyCard extends HTMLElement {
       this.callService('create_routine', data);
     }
     
-    // Clear form and navigate
     this._clearFormState();
     this._editingId = null;
     this._mode = 'routines';
@@ -1330,7 +1636,6 @@ class RoutinelyCard extends HTMLElement {
 
 customElements.define('routinely-card', RoutinelyCard);
 
-// Register with HACS frontend
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'routinely-card',
@@ -1339,6 +1644,6 @@ window.customCards.push({
   preview: true,
 });
 
-console.log('%c ROUTINELY CARD %c Loaded ', 
-  'background: #42A5F5; color: white; font-weight: bold;',
+console.log('%c ROUTINELY CARD %c v1.3.0 ', 
+  'background: #FF6B6B; color: white; font-weight: bold;',
   'background: #66BB6A; color: white;');

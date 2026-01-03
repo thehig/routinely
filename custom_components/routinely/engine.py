@@ -136,9 +136,14 @@ class RoutineEngine:
         )
         return (completed, skipped, len(self._session.task_states))
 
-    async def start_routine(self, routine_id: str) -> bool:
-        """Start a routine execution."""
-        _log.debug("Start routine requested", routine_id=routine_id)
+    async def start_routine(self, routine_id: str, skip_task_ids: list[str] | None = None) -> bool:
+        """Start a routine execution.
+        
+        Args:
+            routine_id: ID of the routine to start
+            skip_task_ids: Optional list of task IDs to skip (pre-completed)
+        """
+        _log.debug("Start routine requested", routine_id=routine_id, skip_tasks=skip_task_ids)
         
         if self.is_active:
             _log.warning(
@@ -158,46 +163,77 @@ class RoutineEngine:
             _log.error("Routine has no tasks", routine_id=routine_id, name=routine.name)
             return False
 
+        skip_task_ids = skip_task_ids or []
+
         # Create new session
         now = datetime.now().isoformat()
+        task_states = []
+        for t in tasks:
+            state = TaskState(task_id=t.id)
+            if t.id in skip_task_ids:
+                state.status = TaskStatus.SKIPPED
+                state.skipped_at = now
+            task_states.append(state)
+        
         self._session = ExecutionSession(
             id=generate_id(),
             routine_id=routine_id,
             status=SessionStatus.RUNNING,
             current_task_index=0,
-            task_states=[TaskState(task_id=t.id) for t in tasks],
+            task_states=task_states,
             started_at=now,
             elapsed_time=0,
             task_elapsed_time=0,
         )
 
-        # Mark first task as active
-        self._session.task_states[0].status = TaskStatus.ACTIVE
-        self._session.task_states[0].started_at = now
+        # Find first non-skipped task
+        first_active_index = 0
+        for i, state in enumerate(self._session.task_states):
+            if state.status != TaskStatus.SKIPPED:
+                first_active_index = i
+                break
+        
+        self._session.current_task_index = first_active_index
+        
+        # Check if all tasks were skipped
+        if all(s.status == TaskStatus.SKIPPED for s in self._session.task_states):
+            _log.warning("All tasks were skipped, completing routine immediately")
+            self._session.status = SessionStatus.COMPLETED
+            self._fire_event(EVENT_ROUTINE_COMPLETED, {ATTR_ROUTINE_ID: routine_id})
+            self._notify_update()
+            return True
 
+        # Mark first active task as active
+        self._session.task_states[first_active_index].status = TaskStatus.ACTIVE
+        self._session.task_states[first_active_index].started_at = now
+
+        # Count active tasks (not pre-skipped)
+        active_task_count = sum(1 for s in self._session.task_states if s.status != TaskStatus.SKIPPED or s.task_id == tasks[first_active_index].id)
+        
         # Fire events
         self._fire_event(
             EVENT_ROUTINE_STARTED,
             {
                 ATTR_ROUTINE_ID: routine_id,
                 ATTR_ROUTINE_NAME: routine.name,
-                ATTR_TOTAL_TASKS: len(tasks),
+                ATTR_TOTAL_TASKS: active_task_count,
+                "skipped_tasks": len(skip_task_ids),
             },
         )
-        self._fire_task_started_event(tasks[0], 0)
+        self._fire_task_started_event(tasks[first_active_index], first_active_index)
 
         # Send notifications
+        estimated_duration = self.storage.calculate_routine_duration(routine, skip_task_ids)
         if self._notifications_enabled():
-            estimated_duration = self.storage.calculate_routine_duration(routine)
             await self.notifications.notify_routine_started(
                 routine=routine,
-                total_tasks=len(tasks),
+                total_tasks=active_task_count,
                 estimated_duration=estimated_duration,
             )
             await self.notifications.notify_task_started(
-                task=tasks[0],
+                task=tasks[first_active_index],
                 routine_name=routine.name,
-                task_index=0,
+                task_index=first_active_index,
                 total_tasks=len(tasks),
             )
 
@@ -210,7 +246,8 @@ class RoutineEngine:
             routine_id=routine_id,
             name=routine.name,
             total_tasks=len(tasks),
-            estimated_duration=estimated_duration if self._notifications_enabled() else self.storage.calculate_routine_duration(routine),
+            skipped_tasks=len(skip_task_ids),
+            estimated_duration=estimated_duration,
         )
         return True
 

@@ -294,6 +294,13 @@ start:
       required: true
       selector:
         text:
+    skip_task_ids:
+      name: Skip Task IDs
+      description: Optional list of task IDs to skip (pre-completed)
+      required: false
+      example: ["task_abc123", "task_def456"]
+      selector:
+        object:
 
 pause:
   name: Pause

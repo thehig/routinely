@@ -163,7 +163,10 @@ SCHEMA_REORDER_ROUTINE = vol.Schema(
     }
 )
 
-SCHEMA_START = vol.Schema({vol.Required(ATTR_ROUTINE_ID): cv.string})
+SCHEMA_START = vol.Schema({
+    vol.Required(ATTR_ROUTINE_ID): cv.string,
+    vol.Optional("skip_task_ids"): vol.All(cv.ensure_list, [cv.string]),
+})
 
 SCHEMA_SNOOZE = vol.Schema(
     {vol.Optional(ATTR_SECONDS, default=DEFAULT_SNOOZE_DURATION): vol.Coerce(int)}
@@ -359,7 +362,8 @@ async def async_setup_services(
     async def handle_start(call: ServiceCall) -> None:
         """Handle start service call."""
         routine_id = call.data[ATTR_ROUTINE_ID]
-        success = await coordinator.start_routine(routine_id)
+        skip_task_ids = call.data.get("skip_task_ids")
+        success = await coordinator.start_routine(routine_id, skip_task_ids)
         if not success:
             _log.error("Failed to start routine", routine_id=routine_id)
 
