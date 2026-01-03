@@ -128,7 +128,7 @@ SCHEMA_CREATE_ROUTINE = vol.Schema(
         vol.Optional(ATTR_ICON): cv.string,
         vol.Optional(ATTR_TASK_IDS): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional("tags"): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional("schedule_time"): cv.string,
+        vol.Optional("schedule_time"): vol.Any(cv.string, None),
         vol.Optional("schedule_days"): vol.All(cv.ensure_list, [cv.string]),
     }
 )
@@ -141,9 +141,9 @@ SCHEMA_UPDATE_ROUTINE = vol.Schema(
         ),
         vol.Optional(ATTR_ICON): cv.string,
         vol.Optional("tags"): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional("schedule_time"): cv.string,
+        vol.Optional("schedule_time"): vol.Any(cv.string, None),
         vol.Optional("schedule_days"): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional("notification_settings"): dict,
+        vol.Optional("notification_settings"): vol.Any(dict, None),
     }
 )
 
