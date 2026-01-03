@@ -1,14 +1,13 @@
 """Config flow for the Routinely integration."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-
-from .logger import Loggers
 
 from .const import (
     CONF_DEFAULT_ADVANCEMENT_MODE,
@@ -29,7 +28,7 @@ from .const import (
     AdvancementMode,
 )
 
-_log = Loggers.config
+_LOGGER = logging.getLogger(__name__)
 
 
 class RoutinelyConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -41,14 +40,14 @@ class RoutinelyConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        _log.debug("Config flow user step", has_input=user_input is not None)
+        _LOGGER.debug("Config flow user step, has_input=%s", user_input is not None)
         
         # Only allow a single instance
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
 
         if user_input is not None:
-            _log.info("Creating Routinely config entry")
+            _LOGGER.info("Creating Routinely config entry")
             return self.async_create_entry(title="Routinely", data={})
 
         return self.async_show_form(step_id="user")
@@ -65,20 +64,20 @@ class RoutinelyOptionsFlow(OptionsFlow):
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self._config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage the options."""
-        _log.debug("Options flow init step", has_input=user_input is not None)
+        _LOGGER.debug("Options flow init step, has_input=%s", user_input is not None)
         
         if user_input is not None:
-            _log.info("Updating Routinely options", options=user_input)
+            _LOGGER.info("Updating Routinely options: %s", user_input)
             return self.async_create_entry(title="", data=user_input)
 
-        options = self.config_entry.options
-        _log.debug("Current options", options=dict(options))
+        options = self._config_entry.options
+        _LOGGER.debug("Current options: %s", dict(options))
 
         return self.async_show_form(
             step_id="init",
