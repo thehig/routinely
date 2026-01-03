@@ -8,6 +8,8 @@ Timer-guided routine execution for Home Assistant. Create tasks, build routines,
 - **Routine Builder**: Combine tasks into ordered routines
 - **Timer Execution**: Run routines with countdown timers per task
 - **Advancement Modes**: Auto, Manual, or Confirm modes for task completion
+- **TTS Notifications**: Notifications read aloud via iOS/Android platform TTS
+- **Actionable Notifications**: Pause, Resume, Skip, Complete buttons in notifications
 - **Events**: Home Assistant events fired for automation hooks
 - **Sensors**: Track status, current task, time remaining, and progress
 
@@ -108,6 +110,68 @@ Listen for these events in automations:
 | `auto` | Task completes automatically when timer expires |
 | `manual` | User must explicitly mark complete |
 | `confirm` | Shows confirm window after timer; auto-advances if no action |
+
+## Notifications & TTS
+
+Routinely sends rich notifications with **text-to-speech** announcements. Notifications are read aloud by your device's platform TTS (iOS Siri, Android TTS).
+
+### Setup
+
+1. Go to Settings → Devices & Services → Routinely → Configure
+2. Enable notifications
+3. Enter notification targets (e.g., `mobile_app_iphone, mobile_app_pixel`)
+
+### iOS Setup for Spoken Notifications
+
+For iOS devices to read notifications aloud:
+
+1. Open iOS Settings → Notifications → Announce Notifications
+2. Enable "Announce Notifications"
+3. Select "Headphones" or "CarPlay" (or both)
+4. Optionally enable "Reply Without Confirmation"
+
+The Home Assistant app notifications will be spoken by Siri when:
+- You're wearing AirPods/Beats
+- Connected to CarPlay
+- Using "Hey Siri" enabled devices
+
+### Android Setup
+
+Android will use TTS when:
+- Notification channels are configured for spoken announcements
+- You're using Android Auto
+- Accessibility TTS is enabled
+
+### Custom TTS Messages
+
+You can customize what's spoken for each task:
+
+```yaml
+service: routinely.create_task
+data:
+  task_name: "Brush teeth"
+  duration: 120
+  tts_message: "Time to brush your teeth! 2 minutes starting now."
+  notification_message: "🦷 Brush teeth - 2:00"
+```
+
+### Notification Actions
+
+All notifications include actionable buttons:
+
+| Notification | Actions Available |
+|--------------|-------------------|
+| Task Started | Skip, Pause, Done* |
+| Task Ending Soon | Skip, Done |
+| Awaiting Input | Continue, Snooze / Done, Skip |
+| Routine Paused | Resume, Cancel |
+| Routine Complete | (informational) |
+
+*Done button only shown for manual/confirm mode tasks
+
+### Notification Events
+
+Notifications are automatically handled - tapping action buttons triggers the corresponding service. No automations needed!
 
 ## Example Automation
 

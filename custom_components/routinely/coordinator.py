@@ -9,6 +9,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN, SessionStatus
 from .engine import RoutineEngine
+from .notifications import RoutinelyNotifications
 from .storage import RoutinelyStorage
 
 if TYPE_CHECKING:
@@ -29,7 +30,10 @@ class RoutinelyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=timedelta(seconds=1),
         )
         self.storage = storage
-        self.engine = RoutineEngine(hass, storage, self._on_engine_update)
+        self.notifications = RoutinelyNotifications(hass, storage)
+        self.engine = RoutineEngine(
+            hass, storage, self.notifications, self._on_engine_update
+        )
 
     def _on_engine_update(self) -> None:
         """Handle engine state updates."""

@@ -48,6 +48,18 @@ class TaskStatus(StrEnum):
     SKIPPED = "skipped"
 
 
+class NotificationAction(StrEnum):
+    """Notification action button identifiers."""
+
+    PAUSE = "ROUTINELY_PAUSE"
+    RESUME = "ROUTINELY_RESUME"
+    SKIP = "ROUTINELY_SKIP"
+    COMPLETE = "ROUTINELY_COMPLETE"
+    CONFIRM = "ROUTINELY_CONFIRM"
+    SNOOZE = "ROUTINELY_SNOOZE"
+    CANCEL = "ROUTINELY_CANCEL"
+
+
 # Events
 EVENT_ROUTINE_STARTED: Final = f"{DOMAIN}_routine_started"
 EVENT_ROUTINE_PAUSED: Final = f"{DOMAIN}_routine_paused"
@@ -112,3 +124,8 @@ CONF_TASK_ENDING_WARNING: Final = "task_ending_warning"
 CONF_DEFAULT_ADVANCEMENT_MODE: Final = "default_advancement_mode"
 CONF_ENABLE_TTS: Final = "enable_tts"
 CONF_TTS_ENTITY: Final = "tts_entity"
+CONF_ENABLE_NOTIFICATIONS: Final = "enable_notifications"
+
+# Task notification attributes
+ATTR_NOTIFICATION_MESSAGE: Final = "notification_message"
+ATTR_TTS_MESSAGE: Final = "tts_message"

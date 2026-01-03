@@ -15,6 +15,7 @@ from .const import (
     ATTR_DESCRIPTION,
     ATTR_DURATION,
     ATTR_ICON,
+    ATTR_NOTIFICATION_MESSAGE,
     ATTR_POSITION,
     ATTR_ROUTINE_ID,
     ATTR_ROUTINE_NAME,
@@ -22,6 +23,7 @@ from .const import (
     ATTR_TASK_ID,
     ATTR_TASK_IDS,
     ATTR_TASK_NAME,
+    ATTR_TTS_MESSAGE,
     DEFAULT_ADVANCEMENT_MODE,
     DEFAULT_SNOOZE_DURATION,
     DOMAIN,
@@ -48,6 +50,7 @@ from .const import (
     SERVICE_UPDATE_ROUTINE,
     SERVICE_UPDATE_TASK,
     AdvancementMode,
+    NotificationAction,
 )
 from .models import Routine, Task, generate_id
 
@@ -76,6 +79,12 @@ SCHEMA_CREATE_TASK = vol.Schema(
         vol.Optional(ATTR_DESCRIPTION): vol.All(
             cv.string, vol.Length(max=MAX_DESCRIPTION_LENGTH)
         ),
+        vol.Optional(ATTR_NOTIFICATION_MESSAGE): vol.All(
+            cv.string, vol.Length(max=MAX_DESCRIPTION_LENGTH)
+        ),
+        vol.Optional(ATTR_TTS_MESSAGE): vol.All(
+            cv.string, vol.Length(max=MAX_DESCRIPTION_LENGTH)
+        ),
     }
 )
 
@@ -96,6 +105,12 @@ SCHEMA_UPDATE_TASK = vol.Schema(
             vol.Coerce(int), vol.Range(min=MIN_CONFIRM_WINDOW)
         ),
         vol.Optional(ATTR_DESCRIPTION): vol.All(
+            cv.string, vol.Length(max=MAX_DESCRIPTION_LENGTH)
+        ),
+        vol.Optional(ATTR_NOTIFICATION_MESSAGE): vol.All(
+            cv.string, vol.Length(max=MAX_DESCRIPTION_LENGTH)
+        ),
+        vol.Optional(ATTR_TTS_MESSAGE): vol.All(
             cv.string, vol.Length(max=MAX_DESCRIPTION_LENGTH)
         ),
     }
@@ -173,6 +188,8 @@ async def async_setup_services(
             ),
             confirm_window=call.data.get(ATTR_CONFIRM_WINDOW),
             description=call.data.get(ATTR_DESCRIPTION),
+            notification_message=call.data.get(ATTR_NOTIFICATION_MESSAGE),
+            tts_message=call.data.get(ATTR_TTS_MESSAGE),
         )
         await storage.async_create_task(task)
         _LOGGER.info("Created task: %s (%s)", task.name, task.id)
@@ -197,6 +214,10 @@ async def async_setup_services(
             task.confirm_window = call.data[ATTR_CONFIRM_WINDOW]
         if ATTR_DESCRIPTION in call.data:
             task.description = call.data[ATTR_DESCRIPTION]
+        if ATTR_NOTIFICATION_MESSAGE in call.data:
+            task.notification_message = call.data[ATTR_NOTIFICATION_MESSAGE]
+        if ATTR_TTS_MESSAGE in call.data:
+            task.tts_message = call.data[ATTR_TTS_MESSAGE]
 
         task.updated_at = datetime.now().isoformat()
         await storage.async_update_task(task)

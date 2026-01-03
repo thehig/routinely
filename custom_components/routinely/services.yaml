@@ -59,6 +59,22 @@ create_task:
       selector:
         text:
           multiline: true
+    notification_message:
+      name: Notification Message
+      description: Custom notification text (supports {task_name}, {duration_formatted})
+      required: false
+      example: "Time to {task_name}!"
+      selector:
+        text:
+          multiline: true
+    tts_message:
+      name: TTS Message
+      description: Custom text-to-speech announcement (read aloud by iOS/Android)
+      required: false
+      example: "Starting brush teeth. 2 minutes."
+      selector:
+        text:
+          multiline: true
 
 update_task:
   name: Update Task
@@ -118,6 +134,20 @@ update_task:
     description:
       name: Description
       description: New description
+      required: false
+      selector:
+        text:
+          multiline: true
+    notification_message:
+      name: Notification Message
+      description: Custom notification text
+      required: false
+      selector:
+        text:
+          multiline: true
+    tts_message:
+      name: TTS Message
+      description: Custom text-to-speech announcement
       required: false
       selector:
         text:

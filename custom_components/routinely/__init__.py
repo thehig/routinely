@@ -5,8 +5,9 @@ import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.const import Platform
+from homeassistant.core import Event, callback
 
-from .const import DOMAIN
+from .const import DOMAIN, NotificationAction
 from .coordinator import RoutinelyCoordinator
 from .services import async_setup_services, async_unload_services
 from .storage import RoutinelyStorage
@@ -43,6 +44,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Listen for mobile app notification actions
+    async def handle_notification_action(event: Event) -> None:
+        """Handle mobile app notification action events."""
+        action = event.data.get("action", "")
+        
+        # Map notification actions to coordinator methods
+        action_handlers = {
+            NotificationAction.PAUSE: coordinator.pause,
+            NotificationAction.RESUME: coordinator.resume,
+            NotificationAction.SKIP: coordinator.skip_task,
+            NotificationAction.COMPLETE: coordinator.complete_task,
+            NotificationAction.CONFIRM: coordinator.confirm,
+            NotificationAction.SNOOZE: lambda: coordinator.snooze(30),
+            NotificationAction.CANCEL: coordinator.cancel,
+        }
+
+        handler = action_handlers.get(action)
+        if handler:
+            _LOGGER.debug("Handling notification action: %s", action)
+            await handler()
+
+    entry.async_on_unload(
+        hass.bus.async_listen("mobile_app_notification_action", handle_notification_action)
+    )
 
     # Listen for options updates
     entry.async_on_unload(entry.add_update_listener(async_update_options))

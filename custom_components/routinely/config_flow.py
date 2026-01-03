@@ -11,6 +11,7 @@ from homeassistant.data_entry_flow import FlowResult
 
 from .const import (
     CONF_DEFAULT_ADVANCEMENT_MODE,
+    CONF_ENABLE_NOTIFICATIONS,
     CONF_ENABLE_TTS,
     CONF_NOTIFICATION_TARGETS,
     CONF_TASK_ENDING_WARNING,
@@ -69,6 +70,14 @@ class RoutinelyOptionsFlow(OptionsFlow):
             step_id="init",
             data_schema=vol.Schema(
                 {
+                    vol.Optional(
+                        CONF_ENABLE_NOTIFICATIONS,
+                        default=options.get(CONF_ENABLE_NOTIFICATIONS, True),
+                    ): bool,
+                    vol.Optional(
+                        CONF_NOTIFICATION_TARGETS,
+                        default=options.get(CONF_NOTIFICATION_TARGETS, ""),
+                    ): str,
                     vol.Optional(
                         CONF_TASK_ENDING_WARNING,
                         default=options.get(

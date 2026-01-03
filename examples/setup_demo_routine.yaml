@@ -7,7 +7,7 @@ script:
     alias: "Setup Demo Morning Routine"
     description: "Creates demo tasks and a morning routine"
     sequence:
-      # Create Tasks
+      # Create Tasks with custom TTS messages
       - service: routinely.create_task
         data:
           task_name: "Wake up & stretch"
@@ -15,6 +15,8 @@ script:
           icon: "mdi:bed"
           advancement_mode: "manual"
           description: "Gentle stretches to wake up your body"
+          tts_message: "Good morning! Time to wake up and stretch for 1 minute."
+          notification_message: "🌅 Rise and shine! Gentle stretches."
 
       - delay:
           milliseconds: 100
@@ -25,6 +27,8 @@ script:
           duration: 120
           icon: "mdi:toothbrush"
           advancement_mode: "auto"
+          tts_message: "Brush your teeth. 2 minutes."
+          notification_message: "🦷 Brush teeth - 2:00"
 
       - delay:
           milliseconds: 100
@@ -37,6 +41,8 @@ script:
           advancement_mode: "confirm"
           confirm_window: 60
           description: "5 minute shower"
+          tts_message: "Shower time! 5 minutes."
+          notification_message: "🚿 Shower - 5:00"
 
       - delay:
           milliseconds: 100
@@ -47,6 +53,7 @@ script:
           duration: 180
           icon: "mdi:tshirt-crew"
           advancement_mode: "manual"
+          tts_message: "Time to get dressed. 3 minutes."
 
       - delay:
           milliseconds: 100
@@ -59,6 +66,8 @@ script:
           advancement_mode: "confirm"
           confirm_window: 120
           description: "Enjoy a healthy breakfast"
+          tts_message: "Breakfast time! Enjoy a healthy meal. 10 minutes."
+          notification_message: "🍳 Breakfast - 10:00"
 
       - delay:
           milliseconds: 100
@@ -70,6 +79,7 @@ script:
           icon: "mdi:clipboard-list"
           advancement_mode: "manual"
           description: "Check calendar and to-do list"
+          tts_message: "Review your daily goals and check your calendar. 2 minutes."
 
       # Note: After running this script, you'll need to:
       # 1. Get the task IDs from the storage file or by checking the logs

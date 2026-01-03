@@ -18,6 +18,7 @@ from .const import (
     ATTR_TIME_REMAINING,
     ATTR_TOTAL_TASKS,
     ATTR_WAS_AUTO_ADVANCED,
+    CONF_ENABLE_NOTIFICATIONS,
     DEFAULT_CONFIRM_WINDOW,
     DEFAULT_SNOOZE_DURATION,
     DEFAULT_TASK_ENDING_WARNING,
@@ -46,6 +47,7 @@ from .models import (
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+    from .notifications import RoutinelyNotifications
     from .storage import RoutinelyStorage
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,15 +60,24 @@ class RoutineEngine:
         self,
         hass: HomeAssistant,
         storage: RoutinelyStorage,
+        notifications: RoutinelyNotifications | None = None,
         update_callback: Callable[[], None] | None = None,
     ) -> None:
         """Initialize the engine."""
         self.hass = hass
         self.storage = storage
+        self.notifications = notifications
         self._update_callback = update_callback
         self._session: ExecutionSession | None = None
         self._timer_task: asyncio.Task | None = None
         self._ending_soon_fired = False
+
+    def _notifications_enabled(self) -> bool:
+        """Check if notifications are enabled."""
+        return (
+            self.notifications is not None
+            and self.storage.get_setting(CONF_ENABLE_NOTIFICATIONS, True)
+        )
 
     @property
     def session(self) -> ExecutionSession | None:
@@ -169,6 +180,21 @@ class RoutineEngine:
         )
         self._fire_task_started_event(tasks[0], 0)
 
+        # Send notifications
+        if self._notifications_enabled():
+            estimated_duration = self.storage.calculate_routine_duration(routine)
+            await self.notifications.notify_routine_started(
+                routine=routine,
+                total_tasks=len(tasks),
+                estimated_duration=estimated_duration,
+            )
+            await self.notifications.notify_task_started(
+                task=tasks[0],
+                routine_name=routine.name,
+                task_index=0,
+                total_tasks=len(tasks),
+            )
+
         # Start timer
         self._start_timer()
         self._notify_update()
@@ -193,6 +219,11 @@ class RoutineEngine:
                 ATTR_ROUTINE_NAME: routine.name if routine else "",
             },
         )
+
+        # Send notification
+        if self._notifications_enabled() and routine:
+            await self.notifications.notify_routine_paused(routine)
+
         self._notify_update()
 
         _LOGGER.info("Paused routine")
@@ -214,6 +245,12 @@ class RoutineEngine:
                 ATTR_ROUTINE_NAME: routine.name if routine else "",
             },
         )
+
+        # Send notification
+        if self._notifications_enabled() and routine:
+            task = self.get_current_task()
+            if task:
+                await self.notifications.notify_routine_resumed(routine, task)
 
         self._start_timer()
         self._notify_update()
@@ -300,6 +337,11 @@ class RoutineEngine:
             },
         )
 
+        # Send notification
+        if self._notifications_enabled() and routine:
+            await self.notifications.notify_routine_cancelled(routine)
+            await self.notifications.clear_notifications()
+
         self._session = None
         self._notify_update()
 
@@ -359,6 +401,15 @@ class RoutineEngine:
 
         self._fire_task_started_event(tasks[next_index], next_index)
 
+        # Send task started notification
+        if self._notifications_enabled() and routine:
+            await self.notifications.notify_task_started(
+                task=tasks[next_index],
+                routine_name=routine.name,
+                task_index=next_index,
+                total_tasks=len(tasks),
+            )
+
         if self._session.status == SessionStatus.RUNNING:
             self._start_timer()
 
@@ -374,6 +425,7 @@ class RoutineEngine:
 
         routine = self.storage.get_routine(self._session.routine_id)
         completed, skipped, total = self.get_progress()
+        elapsed_time = self._session.elapsed_time
 
         self._fire_event(
             EVENT_ROUTINE_COMPLETED,
@@ -382,11 +434,21 @@ class RoutineEngine:
                 ATTR_ROUTINE_NAME: routine.name if routine else "",
                 "tasks_completed": completed,
                 "tasks_skipped": skipped,
-                "total_duration": self._session.elapsed_time,
+                "total_duration": elapsed_time,
             },
         )
 
         await self._save_to_history()
+
+        # Send completion notification
+        if self._notifications_enabled() and routine:
+            await self.notifications.notify_routine_completed(
+                routine=routine,
+                tasks_completed=completed,
+                tasks_skipped=skipped,
+                total_duration=elapsed_time,
+            )
+            await self.notifications.clear_notifications()
 
         _LOGGER.info("Completed routine: %s", routine.name if routine else "")
         self._session = None
@@ -460,7 +522,7 @@ class RoutineEngine:
             "task_ending_warning", DEFAULT_TASK_ENDING_WARNING
         )
 
-        # Fire ending soon event
+        # Fire ending soon event and notification
         if remaining == warning_time and not self._ending_soon_fired:
             self._ending_soon_fired = True
             self._fire_event(
@@ -472,6 +534,9 @@ class RoutineEngine:
                     ATTR_TIME_REMAINING: remaining,
                 },
             )
+            # Send ending soon notification with TTS
+            if self._notifications_enabled():
+                await self.notifications.notify_task_ending_soon(task, remaining)
 
         # Task timer expired
         if remaining <= 0:
@@ -492,6 +557,12 @@ class RoutineEngine:
                         ATTR_ADVANCEMENT_MODE: task.advancement_mode.value,
                     },
                 )
+                # Send awaiting input notification with TTS
+                if self._notifications_enabled():
+                    await self.notifications.notify_task_awaiting_input(
+                        task=task,
+                        is_confirm_mode=False,
+                    )
             case AdvancementMode.CONFIRM:
                 self._session.confirm_window_active = True
                 self._session.confirm_window_remaining = (
@@ -506,6 +577,13 @@ class RoutineEngine:
                         ATTR_ADVANCEMENT_MODE: task.advancement_mode.value,
                     },
                 )
+                # Send awaiting input notification with TTS
+                if self._notifications_enabled():
+                    await self.notifications.notify_task_awaiting_input(
+                        task=task,
+                        is_confirm_mode=True,
+                        confirm_window=task.confirm_window or DEFAULT_CONFIRM_WINDOW,
+                    )
 
     async def _handle_confirm_window_tick(self) -> None:
         """Handle a timer tick during confirm window."""

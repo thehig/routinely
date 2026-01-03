@@ -25,6 +25,8 @@ class Task:
     advancement_mode: AdvancementMode = AdvancementMode.AUTO
     confirm_window: int | None = None
     description: str | None = None
+    notification_message: str | None = None  # Custom notification text
+    tts_message: str | None = None  # Custom TTS announcement text
     created_at: str = ""
     updated_at: str = ""
 
@@ -47,6 +49,8 @@ class Task:
             advancement_mode=AdvancementMode(data.get("advancement_mode", "auto")),
             confirm_window=data.get("confirm_window"),
             description=data.get("description"),
+            notification_message=data.get("notification_message"),
+            tts_message=data.get("tts_message"),
             created_at=data.get("created_at", ""),
             updated_at=data.get("updated_at", ""),
         )
@@ -61,6 +65,8 @@ class Task:
             "advancement_mode": self.advancement_mode.value,
             "confirm_window": self.confirm_window,
             "description": self.description,
+            "notification_message": self.notification_message,
+            "tts_message": self.tts_message,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
