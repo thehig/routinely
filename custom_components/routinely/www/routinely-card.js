@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.7.1 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.7.2 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -683,13 +683,7 @@ class RoutinelyCard extends HTMLElement {
             <label class="form-label">Icon</label>
             <input type="text" class="form-input" id="task-icon" 
                    value="${this._formState.icon || ''}" 
-                   placeholder="Choose below or paste emoji">
-            <div class="emoji-quick">
-              ${utils.taskEmojis.map(e => `
-                <button class="emoji-chip ${this._formState.icon === e ? 'selected' : ''}" 
-                        data-action="select-emoji" data-emoji="${e}" data-target="task-icon">${e}</button>
-              `).join('')}
-            </div>
+                   placeholder="Paste an emoji (e.g. 🦷)">
           </div>
           
           <div class="form-group">
@@ -773,13 +767,7 @@ class RoutinelyCard extends HTMLElement {
             <label class="form-label">Icon</label>
             <input type="text" class="form-input" id="routine-icon" 
                    value="${this._formState.icon || ''}" 
-                   placeholder="Choose below or paste emoji">
-            <div class="emoji-quick">
-              ${utils.routineEmojis.map(e => `
-                <button class="emoji-chip ${this._formState.icon === e ? 'selected' : ''}" 
-                        data-action="select-emoji" data-emoji="${e}" data-target="routine-icon">${e}</button>
-              `).join('')}
-            </div>
+                   placeholder="Paste an emoji (e.g. 🌅)">
           </div>
           
           <div class="form-group">
@@ -1097,15 +1085,6 @@ class RoutinelyCard extends HTMLElement {
         this._clearFormState();
         this._routineTaskOrder = [];
         this._render();
-        break;
-      
-      case 'select-emoji':
-        const targetInput = this.shadowRoot.getElementById(target.dataset.target);
-        if (targetInput) {
-          targetInput.value = target.dataset.emoji;
-          this._formState.icon = target.dataset.emoji;
-          this._render();
-        }
         break;
       
       case 'select-duration':
