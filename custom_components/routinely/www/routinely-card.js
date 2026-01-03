@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.7.8 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.7.9 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -280,7 +280,7 @@ class RoutinelyCard extends HTMLElement {
       status: statusEntity?.state,
       isActive: statusEntity?.state !== 'idle',
       currentTask: currentTaskEntity?.state,
-      timeRemaining: timeEntity?.state,
+      timeRemaining: timeEntity?.attributes?.seconds,
       progress: progressEntity?.state,
       taskCount: tasksEntity?.state,
       routineCount: routinesEntity?.state,
@@ -310,7 +310,7 @@ class RoutinelyCard extends HTMLElement {
     if (isActive) {
       // Active routine view
       const taskName = currentTaskEntity?.state || 'Unknown Task';
-      const timeRemaining = parseInt(timeEntity?.state) || 0;
+      const timeRemaining = parseInt(timeEntity?.attributes?.seconds) || 0;
       const progress = parseFloat(progressEntity?.state) || 0;
       const currentTaskIndex = currentTaskEntity?.attributes?.task_index || 0;
       const totalTasks = currentTaskEntity?.attributes?.total_tasks || 1;
