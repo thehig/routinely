@@ -193,14 +193,14 @@ async def async_setup_services(
             tts_message=call.data.get(ATTR_TTS_MESSAGE),
         )
         await storage.async_create_task(task)
-        _log.info("Created task: %s (%s)", task.name, task.id)
+        _log.info("Created task", name=task.name, id=task.id)
 
     async def handle_update_task(call: ServiceCall) -> None:
         """Handle update_task service call."""
         task_id = call.data[ATTR_TASK_ID]
         task = storage.get_task(task_id)
         if not task:
-            _log.error("Task not found: %s", task_id)
+            _log.error("Task not found", task_id=task_id)
             return
 
         if ATTR_TASK_NAME in call.data:
@@ -222,7 +222,7 @@ async def async_setup_services(
 
         task.updated_at = datetime.now().isoformat()
         await storage.async_update_task(task)
-        _log.info("Updated task: %s", task.name)
+        _log.info("Updated task", name=task.name)
 
     async def handle_delete_task(call: ServiceCall) -> None:
         """Handle delete_task service call."""
@@ -231,7 +231,7 @@ async def async_setup_services(
             _log.error("Cannot delete task while routine is active")
             return
         await storage.async_delete_task(task_id)
-        _log.info("Deleted task: %s", task_id)
+        _log.info("Deleted task", task_id=task_id)
 
     async def handle_create_routine(call: ServiceCall) -> None:
         """Handle create_routine service call."""
@@ -239,7 +239,7 @@ async def async_setup_services(
         # Validate task IDs exist
         for tid in task_ids:
             if not storage.get_task(tid):
-                _log.error("Task not found: %s", tid)
+                _log.error("Task not found", task_id=tid)
                 return
 
         routine = Routine(
@@ -249,14 +249,14 @@ async def async_setup_services(
             task_ids=task_ids,
         )
         await storage.async_create_routine(routine)
-        _log.info("Created routine: %s (%s)", routine.name, routine.id)
+        _log.info("Created routine", name=routine.name, id=routine.id)
 
     async def handle_update_routine(call: ServiceCall) -> None:
         """Handle update_routine service call."""
         routine_id = call.data[ATTR_ROUTINE_ID]
         routine = storage.get_routine(routine_id)
         if not routine:
-            _log.error("Routine not found: %s", routine_id)
+            _log.error("Routine not found", routine_id=routine_id)
             return
 
         if coordinator.engine.is_active and coordinator.engine.session.routine_id == routine_id:
@@ -270,7 +270,7 @@ async def async_setup_services(
 
         routine.updated_at = datetime.now().isoformat()
         await storage.async_update_routine(routine)
-        _log.info("Updated routine: %s", routine.name)
+        _log.info("Updated routine", name=routine.name)
 
     async def handle_delete_routine(call: ServiceCall) -> None:
         """Handle delete_routine service call."""
@@ -279,7 +279,7 @@ async def async_setup_services(
             _log.error("Cannot delete routine while it is active")
             return
         await storage.async_delete_routine(routine_id)
-        _log.info("Deleted routine: %s", routine_id)
+        _log.info("Deleted routine", routine_id=routine_id)
 
     async def handle_add_task_to_routine(call: ServiceCall) -> None:
         """Handle add_task_to_routine service call."""
@@ -289,11 +289,11 @@ async def async_setup_services(
 
         routine = storage.get_routine(routine_id)
         if not routine:
-            _log.error("Routine not found: %s", routine_id)
+            _log.error("Routine not found", routine_id=routine_id)
             return
 
         if not storage.get_task(task_id):
-            _log.error("Task not found: %s", task_id)
+            _log.error("Task not found", task_id=task_id)
             return
 
         if coordinator.engine.is_active and coordinator.engine.session.routine_id == routine_id:
@@ -307,7 +307,7 @@ async def async_setup_services(
 
         routine.updated_at = datetime.now().isoformat()
         await storage.async_update_routine(routine)
-        _log.info("Added task %s to routine %s", task_id, routine_id)
+        _log.info("Added task to routine", task_id=task_id, routine_id=routine_id)
 
     async def handle_remove_task_from_routine(call: ServiceCall) -> None:
         """Handle remove_task_from_routine service call."""
@@ -316,7 +316,7 @@ async def async_setup_services(
 
         routine = storage.get_routine(routine_id)
         if not routine:
-            _log.error("Routine not found: %s", routine_id)
+            _log.error("Routine not found", routine_id=routine_id)
             return
 
         if coordinator.engine.is_active and coordinator.engine.session.routine_id == routine_id:
@@ -327,9 +327,9 @@ async def async_setup_services(
             routine.task_ids.pop(position)
             routine.updated_at = datetime.now().isoformat()
             await storage.async_update_routine(routine)
-            _log.info("Removed task at position %d from routine %s", position, routine_id)
+            _log.info("Removed task from routine", position=position, routine_id=routine_id)
         else:
-            _log.error("Invalid position: %d", position)
+            _log.error("Invalid position", position=position)
 
     async def handle_reorder_routine(call: ServiceCall) -> None:
         """Handle reorder_routine service call."""
@@ -338,7 +338,7 @@ async def async_setup_services(
 
         routine = storage.get_routine(routine_id)
         if not routine:
-            _log.error("Routine not found: %s", routine_id)
+            _log.error("Routine not found", routine_id=routine_id)
             return
 
         if coordinator.engine.is_active and coordinator.engine.session.routine_id == routine_id:
@@ -348,20 +348,20 @@ async def async_setup_services(
         # Validate all task IDs exist
         for tid in task_ids:
             if not storage.get_task(tid):
-                _log.error("Task not found: %s", tid)
+                _log.error("Task not found", task_id=tid)
                 return
 
         routine.task_ids = task_ids
         routine.updated_at = datetime.now().isoformat()
         await storage.async_update_routine(routine)
-        _log.info("Reordered routine %s", routine_id)
+        _log.info("Reordered routine", routine_id=routine_id)
 
     async def handle_start(call: ServiceCall) -> None:
         """Handle start service call."""
         routine_id = call.data[ATTR_ROUTINE_ID]
         success = await coordinator.start_routine(routine_id)
         if not success:
-            _log.error("Failed to start routine: %s", routine_id)
+            _log.error("Failed to start routine", routine_id=routine_id)
 
     async def handle_pause(call: ServiceCall) -> None:
         """Handle pause service call."""
