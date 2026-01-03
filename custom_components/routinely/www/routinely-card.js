@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.8.2 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.9.0 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -25,6 +25,9 @@ const styles = `
     .task-name { font-size: 2em; font-weight: 700; text-align: center; padding: 10px 20px 20px 20px; color: var(--primary-text-color); }
     .timer { font-size: 5em; font-weight: 700; text-align: center; font-family: 'SF Mono', monospace; padding: 20px 0; color: var(--primary-text-color); }
     .timer.paused { color: #FFA726; animation: pulse 1.5s ease-in-out infinite; }
+    .timer.overtime { color: #EF5350; }
+    .time-adjust-row { display: flex; justify-content: center; gap: 8px; margin: 10px 0 20px 0; }
+    .time-adjust-row .btn-small { padding: 8px 16px; font-size: 0.9em; min-width: 50px; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .btn { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; border: none; border-radius: 16px; font-size: 1em; font-weight: 600; cursor: pointer; transition: transform 0.1s; min-width: 100px; flex: 1; }
     .btn:active { transform: scale(0.95); }
@@ -170,13 +173,16 @@ const styles = `
 // UTILITIES
 // =============================================================================
 const utils = {
-  formatTime: (seconds) => {
-    if (seconds === null || seconds === undefined || seconds < 0) return '--:--';
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    if (hrs > 0) return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  formatTime: (seconds, showSign = false) => {
+    if (seconds === null || seconds === undefined) return '--:--';
+    const isNegative = seconds < 0;
+    const absSeconds = Math.abs(seconds);
+    const hrs = Math.floor(absSeconds / 3600);
+    const mins = Math.floor((absSeconds % 3600) / 60);
+    const secs = absSeconds % 60;
+    const prefix = isNegative ? '+' : (showSign ? '-' : '');
+    if (hrs > 0) return `${prefix}${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    return `${prefix}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   },
   formatDuration: (seconds) => {
     if (!seconds || seconds <= 0) return '0m';
@@ -317,6 +323,8 @@ class RoutinelyCard extends HTMLElement {
       const currentTaskIndex = currentTaskEntity?.attributes?.task_index || 0;
       const totalTasks = progressEntity?.attributes?.total_tasks || 1;
       const advancementMode = currentTaskEntity?.attributes?.advancement_mode || 'manual';
+      const taskDuration = currentTaskEntity?.attributes?.duration || 0;
+      const taskElapsed = currentTaskEntity?.attributes?.task_elapsed_time || 0;
       
       content = this._renderActiveRoutine({
         taskName,
@@ -327,7 +335,8 @@ class RoutinelyCard extends HTMLElement {
         currentTaskIndex,
         totalTasks,
         advancementMode,
-        awaitingInput
+        taskDuration,
+        taskElapsed
       });
     } else {
       // Inactive views based on mode
@@ -367,7 +376,10 @@ class RoutinelyCard extends HTMLElement {
   // ==========================================================================
 
   _renderActiveRoutine(state) {
-    const { taskName, taskIcon, timeRemaining, isPaused, progressPercent, currentTaskIndex, totalTasks, advancementMode, awaitingInput } = state;
+    const { taskName, taskIcon, timeRemaining, isPaused, progressPercent, currentTaskIndex, totalTasks, advancementMode, taskDuration, taskElapsed } = state;
+    
+    const isOvertime = timeRemaining < 0;
+    const isManualMode = advancementMode === 'manual' || advancementMode === 'confirm';
     
     let actionButtons = '';
     
@@ -396,8 +408,22 @@ class RoutinelyCard extends HTMLElement {
       `;
     }
     
-    const timerClass = isPaused ? 'timer paused' : 'timer';
-    const statusText = isPaused ? '⏸️ PAUSED' : '▶️ ACTIVE';
+    // Time adjustment buttons (only when not paused)
+    const canSubtract5 = timeRemaining > 300;
+    const canSubtract1 = timeRemaining > 60;
+    const canAdd = !isOvertime;
+    
+    const timeAdjustButtons = !isPaused ? `
+      <div class="time-adjust-row">
+        <button class="btn btn-small ${canSubtract5 ? '' : 'disabled'}" data-action="adjust-time" data-seconds="-300" ${canSubtract5 ? '' : 'disabled'}>-5m</button>
+        <button class="btn btn-small ${canSubtract1 ? '' : 'disabled'}" data-action="adjust-time" data-seconds="-60" ${canSubtract1 ? '' : 'disabled'}>-1m</button>
+        <button class="btn btn-small ${canAdd ? '' : 'disabled'}" data-action="adjust-time" data-seconds="60" ${canAdd ? '' : 'disabled'}>+1m</button>
+        <button class="btn btn-small ${canAdd ? '' : 'disabled'}" data-action="adjust-time" data-seconds="300" ${canAdd ? '' : 'disabled'}>+5m</button>
+      </div>
+    ` : '';
+    
+    const timerClass = isPaused ? 'timer paused' : (isOvertime ? 'timer overtime' : 'timer');
+    const statusText = isPaused ? '⏸️ PAUSED' : (isOvertime ? '⏰ OVERTIME' : '▶️ ACTIVE');
     
     const clampedProgress = Math.min(100, Math.max(0, progressPercent));
     
@@ -407,6 +433,7 @@ class RoutinelyCard extends HTMLElement {
         <div class="task-icon-large">${taskIcon}</div>
         <div class="task-name">${taskName || 'No Task'}</div>
         <div class="${timerClass}">${utils.formatTime(timeRemaining)}</div>
+        ${timeAdjustButtons}
         <div class="progress-container">
           <div class="progress-bar">
             <div class="progress-fill" style="width: ${clampedProgress}%"></div>
@@ -1028,6 +1055,10 @@ class RoutinelyCard extends HTMLElement {
         break;
       case 'stop':
         await this._callService('cancel');
+        break;
+      case 'adjust-time':
+        const adjustSeconds = parseInt(target.dataset.seconds) || 0;
+        await this._callService('adjust_time', { seconds: adjustSeconds });
         break;
       
       // Task CRUD

@@ -90,6 +90,7 @@ SERVICE_COMPLETE_TASK: Final = "complete_task"
 SERVICE_CANCEL: Final = "cancel"
 SERVICE_CONFIRM: Final = "confirm"
 SERVICE_SNOOZE: Final = "snooze"
+SERVICE_ADJUST_TIME: Final = "adjust_time"
 
 # Attributes
 ATTR_TASK_ID: Final = "task_id"

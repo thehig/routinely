@@ -153,7 +153,10 @@ class RoutineEngine:
         return tasks
 
     def get_time_remaining(self) -> int:
-        """Get remaining time for current task in seconds."""
+        """Get remaining time for current task in seconds.
+        
+        Returns negative values for manual tasks when overtime (counting up).
+        """
         if not self._session or not self.is_active:
             return 0
         task = self.get_current_task()
@@ -163,7 +166,13 @@ class RoutineEngine:
         if self._session.confirm_window_active:
             return self._session.confirm_window_remaining
 
-        return max(0, task.duration - self._session.task_elapsed_time)
+        remaining = task.duration - self._session.task_elapsed_time
+        
+        # For manual/confirm tasks, allow negative (overtime) values
+        if task.advancement_mode != AdvancementMode.AUTO:
+            return remaining
+        
+        return max(0, remaining)
 
     def get_progress(self) -> tuple[int, int, int, int]:
         """Get progress as (completed, skipped, total, active_total).
@@ -441,6 +450,48 @@ class RoutineEngine:
         )
 
         await self._advance_to_next_task()
+        return True
+
+    def adjust_task_time(self, seconds: int) -> bool:
+        """Adjust the current task's remaining time.
+        
+        Args:
+            seconds: Seconds to add (positive) or subtract (negative)
+            
+        Returns:
+            True if adjustment was made, False otherwise
+        """
+        if not self._session or not self.is_active:
+            _log.debug("Cannot adjust time: no active routine")
+            return False
+        
+        task = self.get_current_task()
+        if not task:
+            _log.debug("Cannot adjust time: no current task")
+            return False
+        
+        # Calculate new elapsed time (subtracting seconds adds time, adding reduces remaining)
+        new_elapsed = self._session.task_elapsed_time - seconds
+        
+        # Don't allow elapsed time to go negative
+        if new_elapsed < 0:
+            new_elapsed = 0
+        
+        # For adding time after expiry, don't allow if already in overtime
+        time_remaining = task.duration - self._session.task_elapsed_time
+        if seconds > 0 and time_remaining < 0:
+            _log.debug("Cannot add time: task already in overtime")
+            return False
+        
+        self._session.task_elapsed_time = new_elapsed
+        self._notify_update()
+        
+        _log.info(
+            "Task time adjusted",
+            task_id=task.id,
+            adjustment=seconds,
+            new_elapsed=new_elapsed,
+        )
         return True
 
     async def complete_task(self) -> bool:

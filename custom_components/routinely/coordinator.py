@@ -163,3 +163,7 @@ class RoutinelyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def cancel(self) -> bool:
         """Cancel the active routine."""
         return await self.engine.cancel()
+
+    def adjust_task_time(self, seconds: int) -> bool:
+        """Adjust the current task's remaining time."""
+        return self.engine.adjust_task_time(seconds)

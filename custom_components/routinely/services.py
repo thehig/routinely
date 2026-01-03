@@ -51,6 +51,7 @@ from .const import (
     SERVICE_START,
     SERVICE_UPDATE_ROUTINE,
     SERVICE_UPDATE_TASK,
+    SERVICE_ADJUST_TIME,
     AdvancementMode,
     NotificationAction,
 )
@@ -181,6 +182,10 @@ SCHEMA_START = vol.Schema({
 
 SCHEMA_SNOOZE = vol.Schema(
     {vol.Optional(ATTR_SECONDS, default=DEFAULT_SNOOZE_DURATION): vol.Coerce(int)}
+)
+
+SCHEMA_ADJUST_TIME = vol.Schema(
+    {vol.Required(ATTR_SECONDS): vol.Coerce(int)}
 )
 
 
@@ -452,6 +457,13 @@ async def async_setup_services(
         if not success:
             _log.warning("No active routine to cancel")
 
+    def handle_adjust_time(call: ServiceCall) -> None:
+        """Handle adjust_time service call."""
+        seconds = call.data.get(ATTR_SECONDS, 0)
+        success = coordinator.adjust_task_time(seconds)
+        if not success:
+            _log.warning("Cannot adjust task time")
+
     # Register services
     hass.services.async_register(DOMAIN, SERVICE_CREATE_TASK, handle_create_task, SCHEMA_CREATE_TASK)
     hass.services.async_register(DOMAIN, SERVICE_UPDATE_TASK, handle_update_task, SCHEMA_UPDATE_TASK)
@@ -470,6 +482,7 @@ async def async_setup_services(
     hass.services.async_register(DOMAIN, SERVICE_CONFIRM, handle_confirm)
     hass.services.async_register(DOMAIN, SERVICE_SNOOZE, handle_snooze, SCHEMA_SNOOZE)
     hass.services.async_register(DOMAIN, SERVICE_CANCEL, handle_cancel)
+    hass.services.async_register(DOMAIN, SERVICE_ADJUST_TIME, handle_adjust_time, SCHEMA_ADJUST_TIME)
 
 
 @callback
@@ -493,6 +506,7 @@ def async_unload_services(hass: HomeAssistant) -> None:
         SERVICE_CONFIRM,
         SERVICE_SNOOZE,
         SERVICE_CANCEL,
+        SERVICE_ADJUST_TIME,
     ]
     for service in services:
         hass.services.async_remove(DOMAIN, service)
