@@ -22,9 +22,10 @@ class RoutinelyCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._mode = 'timer'; // timer | routines | tasks | create-task | create-routine
+    this._mode = 'timer'; // timer | routines | tasks | create-task | create-routine | edit-task | edit-routine
     this._lastRenderState = null;
     this._selectedTasks = [];
+    this._editingId = null; // ID of task/routine being edited
     
     // Form state preservation
     this._formState = {
@@ -45,7 +46,8 @@ class RoutinelyCard extends HTMLElement {
     this._hass = hass;
     
     // Skip re-render if in form mode (preserve user input)
-    if (this._mode === 'create-task' || this._mode === 'create-routine') {
+    if (this._mode === 'create-task' || this._mode === 'create-routine' || 
+        this._mode === 'edit-task' || this._mode === 'edit-routine') {
       // Only update if routine becomes active (user started one)
       const isActive = this.isActive();
       if (isActive) {
@@ -260,6 +262,20 @@ class RoutinelyCard extends HTMLElement {
         font-size: 3em;
       }
 
+      .btn-small {
+        padding: 8px 16px;
+        min-width: auto;
+        flex: 0;
+        flex-direction: row;
+        gap: 6px;
+        font-size: 0.9em;
+      }
+
+      .btn-small .btn-icon {
+        font-size: 1.2em;
+        margin-bottom: 0;
+      }
+
       /* === ROUTINE SELECT === */
       .welcome {
         text-align: center;
@@ -407,6 +423,11 @@ class RoutinelyCard extends HTMLElement {
 
       .item-info {
         flex: 1;
+        cursor: pointer;
+      }
+
+      .item-info:hover {
+        opacity: 0.8;
       }
 
       .item-name {
@@ -419,18 +440,27 @@ class RoutinelyCard extends HTMLElement {
         color: var(--secondary-text-color);
       }
 
-      .item-delete {
-        padding: 10px;
+      .item-actions {
+        display: flex;
+        gap: 4px;
+      }
+
+      .item-btn {
+        padding: 8px;
         background: transparent;
         border: none;
         cursor: pointer;
-        font-size: 1.2em;
+        font-size: 1.1em;
         opacity: 0.5;
         border-radius: 8px;
       }
 
-      .item-delete:hover {
+      .item-btn:hover {
         opacity: 1;
+        background: var(--divider-color, #eee);
+      }
+
+      .item-btn.delete:hover {
         background: #EF5350;
         color: white;
       }
@@ -570,22 +600,26 @@ class RoutinelyCard extends HTMLElement {
         font-size: 0.9em;
       }
 
-      /* === ALERTS === */
-      .alert {
-        padding: 16px;
-        border-radius: 12px;
-        margin: 16px;
-        text-align: center;
+      /* === EMOJI PICKER === */
+      .emoji-quick {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
       }
 
-      .alert-success {
-        background: #E8F5E9;
-        color: #2E7D32;
+      .emoji-chip {
+        padding: 8px 12px;
+        border: 1px solid var(--divider-color, #ddd);
+        border-radius: 8px;
+        background: transparent;
+        cursor: pointer;
+        font-size: 1.3em;
       }
 
-      .alert-error {
-        background: #FFEBEE;
-        color: #C62828;
+      .emoji-chip:hover, .emoji-chip.selected {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
       }
     `;
   }
@@ -659,9 +693,13 @@ class RoutinelyCard extends HTMLElement {
       case 'routines':
         return this.renderRoutineList();
       case 'create-task':
-        return this.renderCreateTask();
+        return this.renderTaskForm(false);
+      case 'edit-task':
+        return this.renderTaskForm(true);
       case 'create-routine':
-        return this.renderCreateRoutine();
+        return this.renderRoutineForm(false);
+      case 'edit-routine':
+        return this.renderRoutineForm(true);
       default:
         return this.renderRoutineSelect();
     }
@@ -714,7 +752,7 @@ class RoutinelyCard extends HTMLElement {
     return `
       <div class="list-header">
         <h3>📋 Tasks</h3>
-        <button class="btn btn-primary" data-nav="create-task">
+        <button class="btn btn-primary btn-small" data-nav="create-task">
           <span class="btn-icon">➕</span>
           New
         </button>
@@ -729,12 +767,15 @@ class RoutinelyCard extends HTMLElement {
       ` : `
         ${tasks.map(t => `
           <div class="item-card">
-            <span class="item-icon">${t.icon || '✓'}</span>
-            <div class="item-info">
+            <span class="item-icon">${t.icon || '✅'}</span>
+            <div class="item-info" data-action="edit-task" data-task-id="${t.id}">
               <div class="item-name">${this.escapeHtml(t.name)}</div>
               <div class="item-meta">${t.duration_formatted} · ${t.mode}</div>
             </div>
-            <button class="item-delete" data-action="delete-task" data-task-id="${t.id}" title="Delete">🗑️</button>
+            <div class="item-actions">
+              <button class="item-btn" data-action="edit-task" data-task-id="${t.id}" title="Edit">✏️</button>
+              <button class="item-btn delete" data-action="delete-task" data-task-id="${t.id}" title="Delete">🗑️</button>
+            </div>
           </div>
         `).join('')}
       `}
@@ -749,7 +790,7 @@ class RoutinelyCard extends HTMLElement {
     return `
       <div class="list-header">
         <h3>📚 Routines</h3>
-        <button class="btn btn-primary" data-nav="create-routine">
+        <button class="btn btn-primary btn-small" data-nav="create-routine">
           <span class="btn-icon">➕</span>
           New
         </button>
@@ -765,11 +806,14 @@ class RoutinelyCard extends HTMLElement {
         ${routines.map(r => `
           <div class="item-card">
             <span class="item-icon">${r.icon || '📋'}</span>
-            <div class="item-info">
+            <div class="item-info" data-action="edit-routine" data-routine-id="${r.id}">
               <div class="item-name">${this.escapeHtml(r.name)}</div>
               <div class="item-meta">${r.task_count} tasks · ${r.duration_formatted}</div>
             </div>
-            <button class="item-delete" data-action="delete-routine" data-routine-id="${r.id}" title="Delete">🗑️</button>
+            <div class="item-actions">
+              <button class="item-btn" data-action="edit-routine" data-routine-id="${r.id}" title="Edit">✏️</button>
+              <button class="item-btn delete" data-action="delete-routine" data-routine-id="${r.id}" title="Delete">🗑️</button>
+            </div>
           </div>
         `).join('')}
       `}
@@ -778,13 +822,16 @@ class RoutinelyCard extends HTMLElement {
     `;
   }
 
-  renderCreateTask() {
+  renderTaskForm(isEdit) {
     const f = this._formState;
     const dur = parseInt(f.taskDuration) || 120;
+    const title = isEdit ? '✏️ Edit Task' : '➕ New Task';
+    const saveLabel = isEdit ? 'Save Changes' : 'Create Task';
+    const cancelNav = 'tasks';
     
     return `
       <div class="form">
-        <div class="form-title">➕ New Task</div>
+        <div class="form-title">${title}</div>
 
         <div class="form-group">
           <label class="form-label">Task Name</label>
@@ -792,7 +839,7 @@ class RoutinelyCard extends HTMLElement {
         </div>
 
         <div class="form-group">
-          <label class="form-label">Duration (seconds)</label>
+          <label class="form-label">Duration</label>
           <input type="number" class="form-input" id="task-duration" placeholder="120" value="${dur}">
           <div class="duration-quick">
             <button class="duration-chip ${dur === 60 ? 'selected' : ''}" data-duration="60">1 min</button>
@@ -813,30 +860,36 @@ class RoutinelyCard extends HTMLElement {
         </div>
 
         <div class="form-group">
-          <label class="form-label">Icon (optional)</label>
-          <input type="text" class="form-input" id="task-icon" placeholder="mdi:toothbrush or emoji 🪥" value="${this.escapeAttr(f.taskIcon)}">
-          <div class="form-hint">Use mdi:icon-name or emoji</div>
+          <label class="form-label">Icon</label>
+          <input type="text" class="form-input" id="task-icon" placeholder="Pick below or type emoji" value="${this.escapeAttr(f.taskIcon)}">
+          <div class="emoji-quick">
+            ${['🪥', '🚿', '👕', '☕', '🍳', '💊', '📱', '🧘', '🏃', '📚', '✍️', '🧹'].map(e => `
+              <button class="emoji-chip ${f.taskIcon === e ? 'selected' : ''}" data-emoji="${e}">${e}</button>
+            `).join('')}
+          </div>
         </div>
 
         <div class="form-actions">
-          <button class="btn btn-secondary" data-nav="tasks" style="flex:1">Cancel</button>
-          <button class="btn btn-success" data-action="save-task" style="flex:2">
+          <button class="btn btn-secondary" data-nav="${cancelNav}" style="flex:1">Cancel</button>
+          <button class="btn btn-success" data-action="${isEdit ? 'update-task' : 'save-task'}" style="flex:2">
             <span class="btn-icon">✅</span>
-            Create Task
+            ${saveLabel}
           </button>
         </div>
       </div>
     `;
   }
 
-  renderCreateRoutine() {
+  renderRoutineForm(isEdit) {
     const tasks = this.getStateAttr('sensor.routinely_tasks', 'tasks') || [];
     const f = this._formState;
+    const title = isEdit ? '✏️ Edit Routine' : '📚 New Routine';
+    const saveLabel = isEdit ? 'Save Changes' : 'Create Routine';
 
     if (tasks.length === 0) {
       return `
         <div class="form">
-          <div class="form-title">📚 New Routine</div>
+          <div class="form-title">${title}</div>
           <div class="empty">
             <div class="empty-icon">⚠️</div>
             <p>Create some tasks first!</p>
@@ -855,7 +908,7 @@ class RoutinelyCard extends HTMLElement {
 
     return `
       <div class="form">
-        <div class="form-title">📚 New Routine</div>
+        <div class="form-title">${title}</div>
 
         <div class="form-group">
           <label class="form-label">Routine Name</label>
@@ -863,17 +916,22 @@ class RoutinelyCard extends HTMLElement {
         </div>
 
         <div class="form-group">
-          <label class="form-label">Icon (optional)</label>
-          <input type="text" class="form-input" id="routine-icon" placeholder="mdi:weather-sunny or emoji 🌅" value="${this.escapeAttr(f.routineIcon)}">
+          <label class="form-label">Icon</label>
+          <input type="text" class="form-input" id="routine-icon" placeholder="Pick below or type emoji" value="${this.escapeAttr(f.routineIcon)}">
+          <div class="emoji-quick">
+            ${['🌅', '🌙', '💪', '🧘', '🍽️', '🛁', '🏠', '💼', '📖', '😴'].map(e => `
+              <button class="emoji-chip ${f.routineIcon === e ? 'selected' : ''}" data-emoji="${e}">${e}</button>
+            `).join('')}
+          </div>
         </div>
 
         <div class="form-group">
-          <label class="form-label">Select Tasks (in order)</label>
+          <label class="form-label">Select Tasks (tap in order)</label>
           <div class="task-selector" id="task-selector">
             ${tasks.map(t => `
               <div class="task-selector-item ${this._selectedTasks.includes(t.id) ? 'selected' : ''}" data-task-id="${t.id}">
                 <div class="task-selector-checkbox">✓</div>
-                <span>${t.icon || '✓'}</span>
+                <span>${t.icon || '✅'}</span>
                 <span style="margin-left:8px">${this.escapeHtml(t.name)} (${t.duration_formatted})</span>
               </div>
             `).join('')}
@@ -883,9 +941,9 @@ class RoutinelyCard extends HTMLElement {
 
         <div class="form-actions">
           <button class="btn btn-secondary" data-nav="routines" style="flex:1">Cancel</button>
-          <button class="btn btn-success" data-action="save-routine" style="flex:2">
+          <button class="btn btn-success" data-action="${isEdit ? 'update-routine' : 'save-routine'}" style="flex:2">
             <span class="btn-icon">✅</span>
-            Create Routine
+            ${saveLabel}
           </button>
         </div>
       </div>
@@ -917,10 +975,11 @@ class RoutinelyCard extends HTMLElement {
       el.addEventListener('click', (e) => {
         const newMode = e.currentTarget.dataset.nav;
         
-        // Clear form state when leaving create forms
-        if ((this._mode === 'create-task' || this._mode === 'create-routine') && 
-            newMode !== this._mode) {
+        // Clear form state when leaving create/edit forms
+        if ((this._mode.startsWith('create-') || this._mode.startsWith('edit-')) && 
+            !newMode.startsWith('create-') && !newMode.startsWith('edit-')) {
           this._clearFormState();
+          this._editingId = null;
         }
         
         this._mode = newMode;
@@ -956,6 +1015,12 @@ class RoutinelyCard extends HTMLElement {
           case 'cancel':
             this.callService('cancel');
             break;
+          case 'edit-task':
+            this.startEditTask(e.currentTarget.dataset.taskId);
+            break;
+          case 'edit-routine':
+            this.startEditRoutine(e.currentTarget.dataset.routineId);
+            break;
           case 'delete-task':
             if (window.confirm('Delete this task?')) {
               this.callService('delete_task', { task_id: e.currentTarget.dataset.taskId });
@@ -967,10 +1032,16 @@ class RoutinelyCard extends HTMLElement {
             }
             break;
           case 'save-task':
-            this.saveTask();
+            this.saveTask(false);
+            break;
+          case 'update-task':
+            this.saveTask(true);
             break;
           case 'save-routine':
-            this.saveRoutine();
+            this.saveRoutine(false);
+            break;
+          case 'update-routine':
+            this.saveRoutine(true);
             break;
         }
       });
@@ -1029,6 +1100,27 @@ class RoutinelyCard extends HTMLElement {
       });
     });
 
+    // Emoji chips
+    this.shadowRoot.querySelectorAll('.emoji-chip').forEach(el => {
+      el.addEventListener('click', (e) => {
+        const emoji = e.currentTarget.dataset.emoji;
+        const taskIconInput = this.shadowRoot.getElementById('task-icon');
+        const routineIconInput = this.shadowRoot.getElementById('routine-icon');
+        
+        if (taskIconInput) {
+          taskIconInput.value = emoji;
+          this._formState.taskIcon = emoji;
+        }
+        if (routineIconInput) {
+          routineIconInput.value = emoji;
+          this._formState.routineIcon = emoji;
+        }
+        
+        this.shadowRoot.querySelectorAll('.emoji-chip').forEach(c => c.classList.remove('selected'));
+        e.currentTarget.classList.add('selected');
+      });
+    });
+
     // Task selector for routine creation
     this.shadowRoot.querySelectorAll('.task-selector-item').forEach(el => {
       el.addEventListener('click', (e) => {
@@ -1051,7 +1143,38 @@ class RoutinelyCard extends HTMLElement {
     });
   }
 
-  saveTask() {
+  startEditTask(taskId) {
+    const tasks = this.getStateAttr('sensor.routinely_tasks', 'tasks') || [];
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    this._editingId = taskId;
+    this._formState.taskName = task.name;
+    this._formState.taskDuration = String(task.duration);
+    this._formState.taskMode = task.mode;
+    this._formState.taskIcon = task.icon || '';
+    
+    this._mode = 'edit-task';
+    this._lastRenderState = null;
+    this.render();
+  }
+
+  startEditRoutine(routineId) {
+    const routines = this.getStateAttr('sensor.routinely_routines', 'routines') || [];
+    const routine = routines.find(r => r.id === routineId);
+    if (!routine) return;
+
+    this._editingId = routineId;
+    this._formState.routineName = routine.name;
+    this._formState.routineIcon = routine.icon || '';
+    this._selectedTasks = routine.task_ids ? [...routine.task_ids] : [];
+    
+    this._mode = 'edit-routine';
+    this._lastRenderState = null;
+    this.render();
+  }
+
+  saveTask(isUpdate) {
     const name = this._formState.taskName?.trim() || this.shadowRoot.getElementById('task-name')?.value?.trim();
     const duration = parseInt(this._formState.taskDuration) || parseInt(this.shadowRoot.getElementById('task-duration')?.value) || 120;
     const mode = this._formState.taskMode || this.shadowRoot.getElementById('task-mode')?.value || 'auto';
@@ -1062,28 +1185,35 @@ class RoutinelyCard extends HTMLElement {
       return;
     }
 
-    const data = {
-      task_name: name,
-      duration: duration,
-      advancement_mode: mode,
-    };
-
-    if (icon) {
-      data.icon = icon;
+    if (isUpdate && this._editingId) {
+      const data = {
+        task_id: this._editingId,
+        task_name: name,
+        duration: duration,
+        advancement_mode: mode,
+      };
+      if (icon) data.icon = icon;
+      this.callService('update_task', data);
+    } else {
+      const data = {
+        task_name: name,
+        duration: duration,
+        advancement_mode: mode,
+      };
+      if (icon) data.icon = icon;
+      this.callService('create_task', data);
     }
-
-    this.callService('create_task', data);
     
     // Clear form and navigate
     this._clearFormState();
+    this._editingId = null;
     this._mode = 'tasks';
     this._lastRenderState = null;
     
-    // Give a moment for the service to complete
     setTimeout(() => this.render(), 500);
   }
 
-  saveRoutine() {
+  saveRoutine(isUpdate) {
     const name = this._formState.routineName?.trim() || this.shadowRoot.getElementById('routine-name')?.value?.trim();
     const icon = this._formState.routineIcon?.trim() || this.shadowRoot.getElementById('routine-icon')?.value?.trim();
 
@@ -1097,19 +1227,32 @@ class RoutinelyCard extends HTMLElement {
       return;
     }
 
-    const data = {
-      routine_name: name,
-      task_ids: this._selectedTasks,
-    };
-
-    if (icon) {
-      data.icon = icon;
+    if (isUpdate && this._editingId) {
+      // Update name/icon
+      const data = {
+        routine_id: this._editingId,
+        routine_name: name,
+      };
+      if (icon) data.icon = icon;
+      this.callService('update_routine', data);
+      
+      // Reorder tasks
+      this.callService('reorder_routine', {
+        routine_id: this._editingId,
+        task_ids: this._selectedTasks,
+      });
+    } else {
+      const data = {
+        routine_name: name,
+        task_ids: this._selectedTasks,
+      };
+      if (icon) data.icon = icon;
+      this.callService('create_routine', data);
     }
-
-    this.callService('create_routine', data);
     
     // Clear form and navigate
     this._clearFormState();
+    this._editingId = null;
     this._mode = 'routines';
     this._lastRenderState = null;
     
