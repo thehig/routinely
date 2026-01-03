@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.6.1 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.6.2 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -160,19 +160,8 @@ const styles = `
     .drag-handle { cursor: grab; padding: 8px; margin-right: 8px; opacity: 0.4; font-size: 1.2em; touch-action: none; }
     .drag-handle:hover { opacity: 0.8; }
     .draggable-item { display: flex; align-items: center; }
-  `;
-  
-  // Minimal utils fallback
-  utils = {
-    formatTime: (s) => s == null || s < 0 ? '--:--' : `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`,
-    formatDuration: (s) => s <= 0 ? '0m' : `${Math.floor(s/60)}m`,
-    formatAdvancementMode: (m) => ({ manual: 'Manual', auto_next: 'Auto', confirm_next: 'Confirm' }[m] || m),
-    getModeStyle: () => '',
-    parseMinutesToArray: (s) => s ? s.split(',').map(x => parseInt(x.trim())).filter(n => !isNaN(n) && n > 0) : [],
-    taskEmojis: ['📋', '✅', '⏰', '🔔', '📝', '🎯', '💪', '🧘'],
-    routineEmojis: ['🌅', '🌙', '☀️', '🏠', '💼', '🧹', '🛏️', '🍽️']
-  };
-  
+`;
+
 // =============================================================================
 // DRAG AND DROP MANAGER
 // =============================================================================
