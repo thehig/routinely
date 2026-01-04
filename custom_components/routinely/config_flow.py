@@ -6,8 +6,9 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_DEFAULT_ADVANCEMENT_MODE,
@@ -39,6 +40,33 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _get_notify_services(hass: HomeAssistant) -> dict[str, str]:
+    """Get available notify services, prioritizing mobile_app services."""
+    services = {}
+    notify_services = hass.services.async_services().get("notify", {})
+    
+    for service_name in notify_services:
+        if service_name == "persistent_notification":
+            continue  # Skip this one
+        
+        # Create a friendly label
+        if service_name.startswith("mobile_app_"):
+            device_name = service_name.replace("mobile_app_", "").replace("_", " ").title()
+            label = f"📱 {device_name} (iOS/Android)"
+        else:
+            label = f"🔔 {service_name.replace('_', ' ').title()}"
+        
+        services[service_name] = label
+    
+    # Sort with mobile_app services first
+    sorted_services = dict(sorted(
+        services.items(),
+        key=lambda x: (0 if x[0].startswith("mobile_app_") else 1, x[1])
+    ))
+    
+    return sorted_services
 
 
 class RoutinelyConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -98,10 +126,42 @@ class RoutinelyOptionsFlow(OptionsFlow):
         if user_input is not None:
             self._data = dict(self._config_entry.options)
             self._data.update(user_input)
+            
+            # Convert notification targets list to comma-separated string
+            targets = self._data.get(CONF_NOTIFICATION_TARGETS, [])
+            if isinstance(targets, list):
+                self._data[CONF_NOTIFICATION_TARGETS] = ",".join(targets)
+            
             return await self.async_step_notifications()
 
         options = self._config_entry.options
         _LOGGER.debug("Current options: %s", dict(options))
+
+        # Get available notify services
+        notify_services = _get_notify_services(self.hass)
+        
+        # Convert stored targets to list format
+        stored_targets = options.get(CONF_NOTIFICATION_TARGETS, "")
+        if isinstance(stored_targets, str):
+            current_targets = [t.strip() for t in stored_targets.split(",") if t.strip()]
+        else:
+            current_targets = stored_targets or []
+
+        # Build schema - use multi-select if services available, else text input
+        if notify_services:
+            targets_schema = selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(value=k, label=v)
+                        for k, v in notify_services.items()
+                    ],
+                    multiple=True,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            )
+        else:
+            # Fallback to text input if no services found
+            targets_schema = str
 
         return self.async_show_form(
             step_id="init",
@@ -113,8 +173,8 @@ class RoutinelyOptionsFlow(OptionsFlow):
                     ): bool,
                     vol.Optional(
                         CONF_NOTIFICATION_TARGETS,
-                        default=options.get(CONF_NOTIFICATION_TARGETS, ""),
-                    ): str,
+                        default=current_targets if notify_services else stored_targets,
+                    ): targets_schema,
                     vol.Optional(
                         CONF_DEFAULT_ADVANCEMENT_MODE,
                         default=options.get(

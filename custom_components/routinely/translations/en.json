@@ -16,7 +16,7 @@
         "title": "Routinely Options",
         "data": {
           "enable_notifications": "Enable notifications",
-          "notification_targets": "Notification targets",
+          "notification_targets": "Notification devices",
           "default_advancement_mode": "Default advancement mode",
           "enable_tts": "Enable TTS announcements",
           "tts_entity": "TTS media player entity",
@@ -24,7 +24,7 @@
         },
         "data_description": {
           "enable_notifications": "Send notifications with TTS announcements to mobile devices",
-          "notification_targets": "Comma-separated notify service names (e.g., mobile_app_iphone, mobile_app_pixel)",
+          "notification_targets": "Select devices to receive routine notifications (iOS/Android apps)",
           "default_advancement_mode": "Default mode for new tasks (auto, manual, confirm)",
           "enable_tts": "Announce task changes via smart speakers",
           "tts_entity": "Entity ID of media player for TTS (e.g., media_player.living_room)",
