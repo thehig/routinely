@@ -116,20 +116,42 @@ class RoutinelyOptionsFlow(OptionsFlow):
         """Initialize options flow."""
         self._config_entry = config_entry
         self._data: dict[str, Any] = {}
+        self._test_message_sent: bool = False
 
-    async def _send_test_notification(self, message: str) -> None:
-        """Send a test notification to configured targets."""
+    @staticmethod
+    def _is_android_target(target: str) -> bool:
+        """Check if target is likely an Android device."""
+        target_lower = target.lower()
+        if "android" in target_lower or "pixel" in target_lower or "galaxy" in target_lower:
+            return True
+        if "iphone" in target_lower or "ipad" in target_lower or "ios" in target_lower:
+            return False
+        return target.startswith("mobile_app_")
+
+    async def _send_test_notification(self, message: str) -> bool:
+        """Send a test notification to configured targets.
+        
+        Returns True if notification was sent successfully to at least one target.
+        """
         targets_str = self._data.get(CONF_NOTIFICATION_TARGETS, "")
         if not targets_str:
-            return
+            return False
         
         targets = [t.strip() for t in targets_str.split(",") if t.strip()]
+        if not targets:
+            return False
         
+        success = False
         for target in targets:
             try:
+                is_android = self._is_android_target(target)
+                
+                # For Android TTS, message must be "TTS" to trigger speech
+                effective_message = "TTS" if is_android else message
+                
                 service_data = {
                     "title": "🧪 Routinely Test",
-                    "message": message,
+                    "message": effective_message,
                     "data": {
                         "push": {
                             "sound": {"name": "default", "volume": 1.0},
@@ -137,6 +159,10 @@ class RoutinelyOptionsFlow(OptionsFlow):
                         },
                         "tts_text": message,
                         "tag": "routinely_test",
+                        # Android-specific TTS settings
+                        "ttl": 0,
+                        "priority": "high",
+                        "channel": "routinely",
                         "actions": [
                             {"action": "ROUTINELY_TEST_OK", "title": "OK"},
                         ],
@@ -152,8 +178,11 @@ class RoutinelyOptionsFlow(OptionsFlow):
                     await self.hass.services.async_call("notify", target, service_data)
                 
                 _LOGGER.info("Test notification sent to %s", target)
+                success = True
             except Exception as err:
                 _LOGGER.error("Failed to send test notification to %s: %s", target, err)
+        
+        return success
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -163,10 +192,6 @@ class RoutinelyOptionsFlow(OptionsFlow):
         
         if user_input is not None:
             self._data = dict(self._config_entry.options)
-            
-            # Extract test notification fields (don't save these)
-            test_message = user_input.pop("test_message", "")
-            
             self._data.update(user_input)
             
             # Convert notification targets list to comma-separated string
@@ -174,9 +199,9 @@ class RoutinelyOptionsFlow(OptionsFlow):
             if isinstance(targets, list):
                 self._data[CONF_NOTIFICATION_TARGETS] = ",".join(targets)
             
-            # Send test notification if message provided
-            if test_message.strip() and self._data.get(CONF_NOTIFICATION_TARGETS):
-                await self._send_test_notification(test_message.strip())
+            # Go to test notification step if targets are configured
+            if self._data.get(CONF_NOTIFICATION_TARGETS):
+                return await self.async_step_test_notification()
             
             return await self.async_step_notifications()
 
@@ -244,12 +269,53 @@ class RoutinelyOptionsFlow(OptionsFlow):
                         LOG_LEVEL_WARNING,
                         LOG_LEVEL_ERROR,
                     ]),
+                }
+            ),
+        )
+
+    async def async_step_test_notification(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Test notification step - allows sending multiple test messages."""
+        errors: dict[str, str] = {}
+        description_placeholders: dict[str, str] = {}
+        
+        if user_input is not None:
+            test_message = user_input.get("test_message", "").strip()
+            send_test = user_input.get("send_test", False)
+            
+            if send_test and test_message:
+                # Send test notification and stay on this page
+                success = await self._send_test_notification(test_message)
+                if success:
+                    self._test_message_sent = True
+                    description_placeholders["status"] = "✅ Test notification sent!"
+                else:
+                    errors["base"] = "notification_failed"
+                    description_placeholders["status"] = "❌ Failed to send notification"
+            elif not send_test:
+                # Continue to next step (user clicked "Continue")
+                return await self.async_step_notifications()
+            else:
+                # Send was clicked but no message
+                errors["test_message"] = "message_required"
+                description_placeholders["status"] = ""
+        else:
+            description_placeholders["status"] = ""
+
+        return self.async_show_form(
+            step_id="test_notification",
+            data_schema=vol.Schema(
+                {
                     vol.Optional(
                         "test_message",
                         description={"suggested_value": "This is a notification test from Routinely"},
                     ): str,
+                    vol.Optional("send_test", default=True): bool,
                 }
             ),
+            errors=errors,
+            description_placeholders=description_placeholders,
         )
 
     async def async_step_notifications(
