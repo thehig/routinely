@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.notify import ATTR_DATA, ATTR_MESSAGE, ATTR_TITLE
 
 from .const import (
+    CONF_ENABLE_TTS,
     CONF_NOTIFICATION_TARGETS,
+    CONF_TTS_ENTITY,
     DOMAIN,
     NotificationAction,
 )
@@ -52,6 +54,61 @@ class RoutinelyNotifications:
             return [t.strip() for t in targets.split(",") if t.strip()]
         return targets or []
 
+    def _tts_enabled(self) -> bool:
+        """Check if TTS via speaker is enabled."""
+        return bool(
+            self.storage.get_setting(CONF_ENABLE_TTS, False)
+            and self.storage.get_setting(CONF_TTS_ENTITY, "")
+        )
+
+    async def _speak_tts(self, message: str) -> None:
+        """Speak message via configured TTS entity (HomePod, Google Home, etc).
+        
+        This provides TTS for iOS users since iOS doesn't support TTS in notifications.
+        Also useful for any user who wants announcements on smart speakers.
+        """
+        if not self._tts_enabled():
+            return
+
+        tts_entity = self.storage.get_setting(CONF_TTS_ENTITY, "")
+        if not tts_entity:
+            return
+
+        try:
+            # Try tts.speak service first (newer HA versions)
+            # This works with media_player entities
+            await self.hass.services.async_call(
+                "tts",
+                "speak",
+                {
+                    "entity_id": tts_entity,
+                    "message": message,
+                    "media_player_entity_id": tts_entity,
+                },
+                blocking=False,
+            )
+            _log.debug("TTS spoken via tts.speak", entity=tts_entity)
+        except Exception as err:
+            _log.debug("tts.speak failed, trying cloud_say", error=str(err))
+            try:
+                # Fallback: try tts.cloud_say for cloud TTS
+                await self.hass.services.async_call(
+                    "tts",
+                    "cloud_say",
+                    {
+                        "entity_id": tts_entity,
+                        "message": message,
+                    },
+                    blocking=False,
+                )
+                _log.debug("TTS spoken via tts.cloud_say", entity=tts_entity)
+            except Exception as err2:
+                _log.error(
+                    "Failed to speak TTS",
+                    entity=tts_entity,
+                    error=str(err2),
+                )
+
     async def async_send(
         self,
         notification_type: str,
@@ -86,6 +143,10 @@ class RoutinelyNotifications:
         )
 
         tts_text = tts_message or message
+
+        # Speak via TTS entity if configured (for iOS users and smart speakers)
+        if tts_text and self._tts_enabled():
+            await self._speak_tts(tts_text)
 
         for target in targets:
             try:

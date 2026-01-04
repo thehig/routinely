@@ -133,54 +133,85 @@ class RoutinelyOptionsFlow(OptionsFlow):
         
         Returns True if notification was sent successfully to at least one target.
         """
-        targets_str = self._data.get(CONF_NOTIFICATION_TARGETS, "")
-        if not targets_str:
-            return False
-        
-        targets = [t.strip() for t in targets_str.split(",") if t.strip()]
-        if not targets:
-            return False
-        
         success = False
-        for target in targets:
-            try:
-                is_android = self._is_android_target(target)
-                
-                # For Android TTS, message must be "TTS" to trigger speech
-                effective_message = "TTS" if is_android else message
-                
-                service_data = {
-                    "title": "🧪 Routinely Test",
-                    "message": effective_message,
-                    "data": {
-                        "push": {
-                            "sound": {"name": "default", "volume": 1.0},
-                            "interruption-level": "active",
+        
+        # Send to mobile notification targets
+        targets_str = self._data.get(CONF_NOTIFICATION_TARGETS, "")
+        if targets_str:
+            targets = [t.strip() for t in targets_str.split(",") if t.strip()]
+            
+            for target in targets:
+                try:
+                    is_android = self._is_android_target(target)
+                    
+                    # For Android TTS, message must be "TTS" to trigger speech
+                    effective_message = "TTS" if is_android else message
+                    
+                    service_data = {
+                        "title": "🧪 Routinely Test",
+                        "message": effective_message,
+                        "data": {
+                            "push": {
+                                "sound": {"name": "default", "volume": 1.0},
+                                "interruption-level": "active",
+                            },
+                            "tts_text": message,
+                            "tag": "routinely_test",
+                            # Android-specific TTS settings
+                            "ttl": 0,
+                            "priority": "high",
+                            "channel": "routinely",
+                            "actions": [
+                                {"action": "ROUTINELY_TEST_OK", "title": "OK"},
+                            ],
                         },
-                        "tts_text": message,
-                        "tag": "routinely_test",
-                        # Android-specific TTS settings
-                        "ttl": 0,
-                        "priority": "high",
-                        "channel": "routinely",
-                        "actions": [
-                            {"action": "ROUTINELY_TEST_OK", "title": "OK"},
-                        ],
+                    }
+                    
+                    if target.startswith("mobile_app_"):
+                        await self.hass.services.async_call("notify", target, service_data)
+                    elif "." in target:
+                        domain, service = target.split(".", 1)
+                        await self.hass.services.async_call(domain, service, service_data)
+                    else:
+                        await self.hass.services.async_call("notify", target, service_data)
+                    
+                    _LOGGER.info("Test notification sent to %s", target)
+                    success = True
+                except Exception as err:
+                    _LOGGER.error("Failed to send test notification to %s: %s", target, err)
+        
+        # Also speak via TTS entity if configured (for iOS users with HomePod, etc.)
+        tts_entity = self._data.get(CONF_TTS_ENTITY, "")
+        if self._data.get(CONF_ENABLE_TTS, False) and tts_entity:
+            try:
+                await self.hass.services.async_call(
+                    "tts",
+                    "speak",
+                    {
+                        "entity_id": tts_entity,
+                        "message": message,
+                        "media_player_entity_id": tts_entity,
                     },
-                }
-                
-                if target.startswith("mobile_app_"):
-                    await self.hass.services.async_call("notify", target, service_data)
-                elif "." in target:
-                    domain, service = target.split(".", 1)
-                    await self.hass.services.async_call(domain, service, service_data)
-                else:
-                    await self.hass.services.async_call("notify", target, service_data)
-                
-                _LOGGER.info("Test notification sent to %s", target)
+                    blocking=False,
+                )
+                _LOGGER.info("Test TTS sent to %s", tts_entity)
                 success = True
             except Exception as err:
-                _LOGGER.error("Failed to send test notification to %s: %s", target, err)
+                _LOGGER.debug("tts.speak failed, trying cloud_say: %s", err)
+                try:
+                    await self.hass.services.async_call(
+                        "tts",
+                        "cloud_say",
+                        {
+                            "entity_id": tts_entity,
+                            "message": message,
+                        },
+                        blocking=False,
+                    )
+                    _LOGGER.info("Test TTS (cloud_say) sent to %s", tts_entity)
+                    success = True
+                except Exception as err2:
+                    _LOGGER.error("Failed to send test TTS to %s: %s", tts_entity, err2)
         
         return success
 
