@@ -125,12 +125,20 @@ class RoutinelyOptionsFlow(OptionsFlow):
         
         if user_input is not None:
             self._data = dict(self._config_entry.options)
+            
+            # Check if test notification requested
+            send_test = user_input.pop("send_test_notification", False)
+            
             self._data.update(user_input)
             
             # Convert notification targets list to comma-separated string
             targets = self._data.get(CONF_NOTIFICATION_TARGETS, [])
             if isinstance(targets, list):
                 self._data[CONF_NOTIFICATION_TARGETS] = ",".join(targets)
+            
+            # Send test notification if requested
+            if send_test and self._data.get(CONF_NOTIFICATION_TARGETS):
+                await self._send_test_notification()
             
             return await self.async_step_notifications()
 
