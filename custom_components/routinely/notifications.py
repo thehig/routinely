@@ -98,10 +98,15 @@ class RoutinelyNotifications:
                     extra_data=data,
                     target=target,
                 )
-                # For Android TTS critical, message must be "TTS"
+                # For Android TTS, message must be "TTS" to trigger speech
+                # See: https://companion.home-assistant.io/docs/notifications/notifications-basic/#text-to-speech-notifications
                 effective_message = message
-                if critical and self._is_android_target(target):
+                if self._is_android_target(target) and tts_text:
+                    # Use "TTS" to trigger speech mode on Android
+                    # The actual text is in data.tts_text
                     effective_message = "TTS"
+                    # Store the original message for reference
+                    notification_data["message_text"] = message
                 
                 await self._send_to_target(target, title, effective_message, notification_data)
                 _log.debug("Notification sent", target=target, type=notification_type)

@@ -40,8 +40,15 @@ class RoutinelyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _log.debug("Coordinator initialized")
 
     def _on_engine_update(self) -> None:
-        """Handle engine state updates."""
-        self.async_set_updated_data(self._build_data())
+        """Handle engine state updates.
+        
+        This callback may be invoked from a thread other than the event loop
+        (e.g., from synchronous service handlers). We use call_soon_threadsafe
+        to ensure the update is scheduled on the event loop.
+        """
+        self.hass.loop.call_soon_threadsafe(
+            self.async_set_updated_data, self._build_data()
+        )
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the engine."""

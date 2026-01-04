@@ -20,8 +20,7 @@
           "default_advancement_mode": "Default advancement mode",
           "enable_tts": "Enable TTS announcements",
           "tts_entity": "TTS media player entity",
-          "log_level": "Log level",
-          "test_message": "Test notification message"
+          "log_level": "Log level"
         },
         "data_description": {
           "enable_notifications": "Send notifications with TTS announcements to mobile devices",
@@ -29,8 +28,19 @@
           "default_advancement_mode": "Default mode for new tasks (auto, manual, confirm)",
           "enable_tts": "Announce task changes via smart speakers",
           "tts_entity": "Entity ID of media player for TTS (e.g., media_player.living_room)",
-          "log_level": "Logging verbosity level (debug shows detailed diagnostics)",
-          "test_message": "Enter a message and submit to send a test notification with TTS"
+          "log_level": "Logging verbosity level (debug shows detailed diagnostics)"
+        }
+      },
+      "test_notification": {
+        "title": "Test Notifications",
+        "description": "Send a test notification to verify your devices are configured correctly. {status}",
+        "data": {
+          "test_message": "Test message",
+          "send_test": "Send test notification"
+        },
+        "data_description": {
+          "test_message": "Enter a message to send as a test notification with TTS",
+          "send_test": "Check to send test, uncheck to continue to next step"
         }
       },
       "notifications": {
@@ -51,6 +61,10 @@
           "notify_on_complete": "Send notification when task is completed"
         }
       }
+    },
+    "error": {
+      "notification_failed": "Failed to send notification. Check your notification targets.",
+      "message_required": "Please enter a test message"
     }
   },
   "entity": {
