@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.notify import ATTR_DATA, ATTR_MESSAGE, ATTR_TITLE
 
 from .const import (
+    CONF_ENABLE_BROWSER_MOD_TTS,
     CONF_ENABLE_TTS,
     CONF_NOTIFICATION_TARGETS,
     CONF_TTS_ENTITY,
@@ -61,6 +62,10 @@ class RoutinelyNotifications:
             and self.storage.get_setting(CONF_TTS_ENTITY, "")
         )
 
+    def _browser_mod_tts_enabled(self) -> bool:
+        """Check if browser_mod TTS is enabled."""
+        return bool(self.storage.get_setting(CONF_ENABLE_BROWSER_MOD_TTS, False))
+
     async def _speak_tts(self, message: str) -> None:
         """Speak message via configured TTS entity (HomePod, Google Home, etc).
         
@@ -109,6 +114,50 @@ class RoutinelyNotifications:
                     error=str(err2),
                 )
 
+    async def _speak_browser_mod_tts(self, message: str) -> None:
+        """Speak message via browser_mod using Web Speech API.
+        
+        This works on iOS Safari and any browser with Web Speech API support.
+        Requires browser_mod integration to be installed and browsers registered.
+        
+        Uses the browser's built-in speechSynthesis API to speak text directly
+        on the device - perfect for iOS devices viewing HA dashboards.
+        """
+        if not self._browser_mod_tts_enabled():
+            return
+
+        # Check if browser_mod is available
+        if not self.hass.services.has_service("browser_mod", "javascript"):
+            _log.debug("browser_mod.javascript service not available")
+            return
+
+        # Escape the message for JavaScript string
+        escaped_message = message.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
+        
+        # JavaScript code to speak using Web Speech API
+        # This works on iOS Safari, Chrome, Firefox, Edge, etc.
+        js_code = f"""
+            if ('speechSynthesis' in window) {{
+                const utterance = new SpeechSynthesisUtterance('{escaped_message}');
+                utterance.rate = 1.0;
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
+                speechSynthesis.speak(utterance);
+            }}
+        """
+
+        try:
+            # Call browser_mod.javascript on all registered browsers
+            await self.hass.services.async_call(
+                "browser_mod",
+                "javascript",
+                {"code": js_code},
+                blocking=False,
+            )
+            _log.debug("browser_mod TTS spoken", message=message[:50])
+        except Exception as err:
+            _log.error("Failed to speak via browser_mod", error=str(err))
+
     async def async_send(
         self,
         notification_type: str,
@@ -147,6 +196,10 @@ class RoutinelyNotifications:
         # Speak via TTS entity if configured (for iOS users and smart speakers)
         if tts_text and self._tts_enabled():
             await self._speak_tts(tts_text)
+
+        # Speak via browser_mod if configured (for iOS Safari and other browsers)
+        if tts_text and self._browser_mod_tts_enabled():
+            await self._speak_browser_mod_tts(tts_text)
 
         for target in targets:
             try:

@@ -125,6 +125,7 @@ CONF_TASK_ENDING_WARNING: Final = "task_ending_warning"
 CONF_DEFAULT_ADVANCEMENT_MODE: Final = "default_advancement_mode"
 CONF_ENABLE_TTS: Final = "enable_tts"
 CONF_TTS_ENTITY: Final = "tts_entity"
+CONF_ENABLE_BROWSER_MOD_TTS: Final = "enable_browser_mod_tts"
 CONF_ENABLE_NOTIFICATIONS: Final = "enable_notifications"
 CONF_LOG_LEVEL: Final = "log_level"
 

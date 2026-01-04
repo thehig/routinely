@@ -20,14 +20,16 @@
           "default_advancement_mode": "Default advancement mode",
           "enable_tts": "Enable TTS announcements",
           "tts_entity": "TTS media player entity",
+          "enable_browser_mod_tts": "Enable browser_mod TTS (iOS)",
           "log_level": "Log level"
         },
         "data_description": {
           "enable_notifications": "Send notifications with TTS announcements to mobile devices",
           "notification_targets": "Select devices to receive routine notifications (iOS/Android apps)",
           "default_advancement_mode": "Default mode for new tasks (auto, manual, confirm)",
-          "enable_tts": "Speak announcements via smart speaker (required for iOS TTS)",
-          "tts_entity": "Media player entity for TTS (e.g., media_player.homepod, media_player.living_room)",
+          "enable_tts": "Speak via smart speaker (HomePod, Google Home)",
+          "tts_entity": "Media player entity (e.g., media_player.homepod)",
+          "enable_browser_mod_tts": "Speak via browser_mod (iOS Safari TTS)",
           "log_level": "Logging verbosity level (debug shows detailed diagnostics)"
         }
       },

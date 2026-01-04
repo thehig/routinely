@@ -12,6 +12,7 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_DEFAULT_ADVANCEMENT_MODE,
+    CONF_ENABLE_BROWSER_MOD_TTS,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_ENABLE_TTS,
     CONF_LOG_LEVEL,
@@ -213,6 +214,33 @@ class RoutinelyOptionsFlow(OptionsFlow):
                 except Exception as err2:
                     _LOGGER.error("Failed to send test TTS to %s: %s", tts_entity, err2)
         
+        # Speak via browser_mod if enabled (for iOS Safari and other browsers)
+        if self._data.get(CONF_ENABLE_BROWSER_MOD_TTS, False):
+            if self.hass.services.has_service("browser_mod", "javascript"):
+                escaped_message = message.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
+                js_code = f"""
+                    if ('speechSynthesis' in window) {{
+                        const utterance = new SpeechSynthesisUtterance('{escaped_message}');
+                        utterance.rate = 1.0;
+                        utterance.pitch = 1.0;
+                        utterance.volume = 1.0;
+                        speechSynthesis.speak(utterance);
+                    }}
+                """
+                try:
+                    await self.hass.services.async_call(
+                        "browser_mod",
+                        "javascript",
+                        {"code": js_code},
+                        blocking=False,
+                    )
+                    _LOGGER.info("Test browser_mod TTS sent")
+                    success = True
+                except Exception as err:
+                    _LOGGER.error("Failed to send test browser_mod TTS: %s", err)
+            else:
+                _LOGGER.warning("browser_mod.javascript service not available - install browser_mod from HACS")
+        
         return success
 
     async def async_step_init(
@@ -291,6 +319,10 @@ class RoutinelyOptionsFlow(OptionsFlow):
                         CONF_TTS_ENTITY,
                         default=options.get(CONF_TTS_ENTITY, ""),
                     ): str,
+                    vol.Optional(
+                        CONF_ENABLE_BROWSER_MOD_TTS,
+                        default=options.get(CONF_ENABLE_BROWSER_MOD_TTS, False),
+                    ): bool,
                     vol.Optional(
                         CONF_LOG_LEVEL,
                         default=options.get(CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL),
