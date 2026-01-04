@@ -52,6 +52,7 @@ from .const import (
     SERVICE_UPDATE_ROUTINE,
     SERVICE_UPDATE_TASK,
     SERVICE_ADJUST_TIME,
+    SERVICE_TEST_NOTIFICATION,
     AdvancementMode,
     NotificationAction,
 )
@@ -186,6 +187,10 @@ SCHEMA_SNOOZE = vol.Schema(
 
 SCHEMA_ADJUST_TIME = vol.Schema(
     {vol.Required(ATTR_SECONDS): vol.Coerce(int)}
+)
+
+SCHEMA_TEST_NOTIFICATION = vol.Schema(
+    {vol.Optional("message", default="This is a test notification from Routinely"): cv.string}
 )
 
 
@@ -464,6 +469,20 @@ async def async_setup_services(
         if not success:
             _log.warning("Cannot adjust task time")
 
+    async def handle_test_notification(call: ServiceCall) -> None:
+        """Handle test_notification service call."""
+        message = call.data.get("message", "This is a test notification from Routinely")
+        
+        # Send test notification via the coordinator's notification handler
+        await coordinator.notifications.async_send(
+            notification_type="test",
+            title="🧪 Routinely Test",
+            message=message,
+            tts_message=message,
+            critical=False,
+        )
+        _log.info("Test notification sent", message=message)
+
     # Register services
     hass.services.async_register(DOMAIN, SERVICE_CREATE_TASK, handle_create_task, SCHEMA_CREATE_TASK)
     hass.services.async_register(DOMAIN, SERVICE_UPDATE_TASK, handle_update_task, SCHEMA_UPDATE_TASK)
@@ -483,6 +502,7 @@ async def async_setup_services(
     hass.services.async_register(DOMAIN, SERVICE_SNOOZE, handle_snooze, SCHEMA_SNOOZE)
     hass.services.async_register(DOMAIN, SERVICE_CANCEL, handle_cancel)
     hass.services.async_register(DOMAIN, SERVICE_ADJUST_TIME, handle_adjust_time, SCHEMA_ADJUST_TIME)
+    hass.services.async_register(DOMAIN, SERVICE_TEST_NOTIFICATION, handle_test_notification, SCHEMA_TEST_NOTIFICATION)
 
 
 @callback
@@ -507,6 +527,7 @@ def async_unload_services(hass: HomeAssistant) -> None:
         SERVICE_SNOOZE,
         SERVICE_CANCEL,
         SERVICE_ADJUST_TIME,
+        SERVICE_TEST_NOTIFICATION,
     ]
     for service in services:
         hass.services.async_remove(DOMAIN, service)

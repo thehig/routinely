@@ -13,6 +13,7 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_DEFAULT_ADVANCEMENT_MODE,
     CONF_ENABLE_BROWSER_MOD_TTS,
+    CONF_ENABLE_HA_PERSISTENT,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_ENABLE_TTS,
     CONF_LOG_LEVEL,
@@ -322,6 +323,10 @@ class RoutinelyOptionsFlow(OptionsFlow):
                     vol.Optional(
                         CONF_ENABLE_BROWSER_MOD_TTS,
                         default=options.get(CONF_ENABLE_BROWSER_MOD_TTS, False),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ENABLE_HA_PERSISTENT,
+                        default=options.get(CONF_ENABLE_HA_PERSISTENT, False),
                     ): bool,
                     vol.Optional(
                         CONF_LOG_LEVEL,

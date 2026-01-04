@@ -91,6 +91,7 @@ SERVICE_CANCEL: Final = "cancel"
 SERVICE_CONFIRM: Final = "confirm"
 SERVICE_SNOOZE: Final = "snooze"
 SERVICE_ADJUST_TIME: Final = "adjust_time"
+SERVICE_TEST_NOTIFICATION: Final = "test_notification"
 
 # Attributes
 ATTR_TASK_ID: Final = "task_id"
@@ -126,6 +127,7 @@ CONF_DEFAULT_ADVANCEMENT_MODE: Final = "default_advancement_mode"
 CONF_ENABLE_TTS: Final = "enable_tts"
 CONF_TTS_ENTITY: Final = "tts_entity"
 CONF_ENABLE_BROWSER_MOD_TTS: Final = "enable_browser_mod_tts"
+CONF_ENABLE_HA_PERSISTENT: Final = "enable_ha_persistent"
 CONF_ENABLE_NOTIFICATIONS: Final = "enable_notifications"
 CONF_LOG_LEVEL: Final = "log_level"
 

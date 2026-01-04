@@ -323,6 +323,11 @@ class RoutineEngine:
         # Send notifications
         estimated_duration = self.storage.calculate_routine_duration(routine, skip_task_ids)
         settings = self._get_notification_settings(routine)
+        
+        # Set routine-specific notification targets if configured
+        if self._notifications_enabled() and settings.notification_targets:
+            self.notifications.set_active_routine_targets(settings.notification_targets)
+        
         if self._notifications_enabled():
             await self.notifications.notify_routine_started(
                 routine=routine,
@@ -473,15 +478,12 @@ class RoutineEngine:
         # Calculate new elapsed time (subtracting seconds adds time, adding reduces remaining)
         new_elapsed = self._session.task_elapsed_time - seconds
         
-        # Don't allow elapsed time to go negative
-        if new_elapsed < 0:
-            new_elapsed = 0
-        
-        # For adding time after expiry, don't allow if already in overtime
-        time_remaining = task.duration - self._session.task_elapsed_time
-        if seconds > 0 and time_remaining < 0:
-            _log.debug("Cannot add time: task already in overtime")
-            return False
+        # Allow negative elapsed time (means time remaining > original duration)
+        # This lets users extend tasks beyond their original duration
+        # Only cap to prevent unreasonable negative values (e.g., -1 hour)
+        min_elapsed = -3600  # Allow extending up to 1 hour beyond original
+        if new_elapsed < min_elapsed:
+            new_elapsed = min_elapsed
         
         self._session.task_elapsed_time = new_elapsed
         self._notify_update()
@@ -491,6 +493,7 @@ class RoutineEngine:
             task_id=task.id,
             adjustment=seconds,
             new_elapsed=new_elapsed,
+            time_remaining=task.duration - new_elapsed,
         )
         return True
 
@@ -580,10 +583,11 @@ class RoutineEngine:
             },
         )
 
-        # Send notification
+        # Send notification and clear routine targets
         if self._notifications_enabled() and routine:
             await self.notifications.notify_routine_cancelled(routine)
             await self.notifications.clear_notifications()
+            self.notifications.clear_active_routine_targets()
 
         self._session = None
         self._notify_update()
@@ -742,7 +746,7 @@ class RoutineEngine:
 
         await self._save_to_history()
 
-        # Send completion notification
+        # Send completion notification and clear routine targets
         if self._notifications_enabled() and routine:
             await self.notifications.notify_routine_completed(
                 routine=routine,
@@ -751,6 +755,7 @@ class RoutineEngine:
                 total_duration=elapsed_time,
             )
             await self.notifications.clear_notifications()
+            self.notifications.clear_active_routine_targets()
 
         _log.info(
             "Routine completed",

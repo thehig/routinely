@@ -7,6 +7,7 @@ from homeassistant.components.notify import ATTR_DATA, ATTR_MESSAGE, ATTR_TITLE
 
 from .const import (
     CONF_ENABLE_BROWSER_MOD_TTS,
+    CONF_ENABLE_HA_PERSISTENT,
     CONF_ENABLE_TTS,
     CONF_NOTIFICATION_TARGETS,
     CONF_TTS_ENTITY,
@@ -44,9 +45,31 @@ class RoutinelyNotifications:
         """Initialize notification handler."""
         self.hass = hass
         self.storage = storage
+        self._active_routine_targets: str | None = None
+
+    def set_active_routine_targets(self, targets: str | None) -> None:
+        """Set notification targets for the active routine.
+        
+        Args:
+            targets: Comma-separated targets, or None to use global defaults
+        """
+        self._active_routine_targets = targets
+        _log.debug("Active routine targets set", targets=targets)
+
+    def clear_active_routine_targets(self) -> None:
+        """Clear routine-specific targets (use global defaults)."""
+        self._active_routine_targets = None
 
     def _get_targets(self) -> list[str]:
-        """Get notification targets from settings."""
+        """Get notification targets from settings.
+        
+        Uses routine-specific targets if set, otherwise global targets.
+        """
+        # Check for routine-specific targets first
+        if self._active_routine_targets:
+            return [t.strip() for t in self._active_routine_targets.split(",") if t.strip()]
+        
+        # Fall back to global targets
         targets = self.storage.get_setting(CONF_NOTIFICATION_TARGETS, "")
         if isinstance(targets, str):
             # Handle comma-separated string
@@ -65,6 +88,10 @@ class RoutinelyNotifications:
     def _browser_mod_tts_enabled(self) -> bool:
         """Check if browser_mod TTS is enabled."""
         return bool(self.storage.get_setting(CONF_ENABLE_BROWSER_MOD_TTS, False))
+
+    def _ha_persistent_enabled(self) -> bool:
+        """Check if HA persistent notifications (toasts) are enabled."""
+        return bool(self.storage.get_setting(CONF_ENABLE_HA_PERSISTENT, False))
 
     async def _speak_tts(self, message: str) -> None:
         """Speak message via configured TTS entity (HomePod, Google Home, etc).
@@ -158,6 +185,37 @@ class RoutinelyNotifications:
         except Exception as err:
             _log.error("Failed to speak via browser_mod", error=str(err))
 
+    async def _send_ha_persistent(
+        self,
+        notification_type: str,
+        title: str,
+        message: str,
+    ) -> None:
+        """Send a Home Assistant persistent notification (toast).
+        
+        This shows a notification in the HA UI sidebar and as a toast message.
+        Useful for users who keep HA open on a tablet or browser.
+        """
+        if not self._ha_persistent_enabled():
+            return
+
+        notification_id = f"routinely_{notification_type}"
+        
+        try:
+            await self.hass.services.async_call(
+                "persistent_notification",
+                "create",
+                {
+                    "title": title,
+                    "message": message,
+                    "notification_id": notification_id,
+                },
+                blocking=False,
+            )
+            _log.debug("HA persistent notification sent", notification_id=notification_id)
+        except Exception as err:
+            _log.error("Failed to send HA persistent notification", error=str(err))
+
     async def async_send(
         self,
         notification_type: str,
@@ -167,6 +225,7 @@ class RoutinelyNotifications:
         data: dict[str, Any] | None = None,
         tts_message: str | None = None,
         critical: bool = False,
+        override_targets: str | None = None,
     ) -> None:
         """Send notification to all configured targets.
         
@@ -178,8 +237,14 @@ class RoutinelyNotifications:
             data: Additional platform-specific data
             tts_message: Message to be spoken aloud (defaults to message if not set)
             critical: Whether this is a critical/time-sensitive notification
+            override_targets: Optional comma-separated targets to use instead of global
         """
-        targets = self._get_targets()
+        # Use override targets if provided, otherwise use global
+        if override_targets:
+            targets = [t.strip() for t in override_targets.split(",") if t.strip()]
+        else:
+            targets = self._get_targets()
+        
         if not targets:
             _log.debug("No notification targets configured, skipping notification")
             return
@@ -200,6 +265,10 @@ class RoutinelyNotifications:
         # Speak via browser_mod if configured (for iOS Safari and other browsers)
         if tts_text and self._browser_mod_tts_enabled():
             await self._speak_browser_mod_tts(tts_text)
+
+        # Send HA persistent notification (toast) if configured
+        if self._ha_persistent_enabled():
+            await self._send_ha_persistent(notification_type, title, message)
 
         for target in targets:
             try:

@@ -21,6 +21,7 @@
           "enable_tts": "Enable TTS announcements",
           "tts_entity": "TTS media player entity",
           "enable_browser_mod_tts": "Enable browser_mod TTS (iOS)",
+          "enable_ha_persistent": "Enable HA toast notifications",
           "log_level": "Log level"
         },
         "data_description": {
@@ -30,6 +31,7 @@
           "enable_tts": "Speak via smart speaker (HomePod, Google Home)",
           "tts_entity": "Media player entity (e.g., media_player.homepod)",
           "enable_browser_mod_tts": "Speak via browser_mod (iOS Safari TTS)",
+          "enable_ha_persistent": "Show toast notifications in HA UI sidebar",
           "log_level": "Logging verbosity level (debug shows detailed diagnostics)"
         }
       },

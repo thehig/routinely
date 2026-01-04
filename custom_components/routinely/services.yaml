@@ -369,3 +369,15 @@ adjust_time:
           max: 600
           unit_of_measurement: seconds
           mode: box
+
+test_notification:
+  name: Test Notification
+  description: Send a test notification to all configured targets (mobile apps, TTS, browser_mod)
+  fields:
+    message:
+      name: Message
+      description: The test message to send (default is a standard test message)
+      required: false
+      default: "This is a test notification from Routinely"
+      selector:
+        text:

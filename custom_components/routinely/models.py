@@ -89,6 +89,8 @@ class NotificationSettings:
     # Auto-next specific (different timing for auto-advancing tasks)
     autonext_notify_before: list[int] = field(default_factory=lambda: [300, 60])
     autonext_notify_remaining: list[int] = field(default_factory=lambda: [60])
+    # Per-routine notification targets (None = use global targets)
+    notification_targets: str | None = None  # Comma-separated targets
     
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "NotificationSettings":
@@ -101,6 +103,7 @@ class NotificationSettings:
             notify_on_complete=data.get("notify_on_complete", False),
             autonext_notify_before=data.get("autonext_notify_before", [300, 60]),
             autonext_notify_remaining=data.get("autonext_notify_remaining", [60]),
+            notification_targets=data.get("notification_targets"),
         )
     
     def to_dict(self) -> dict[str, Any]:
@@ -113,6 +116,7 @@ class NotificationSettings:
             "notify_on_complete": self.notify_on_complete,
             "autonext_notify_before": self.autonext_notify_before,
             "autonext_notify_remaining": self.autonext_notify_remaining,
+            "notification_targets": self.notification_targets,
         }
 
 

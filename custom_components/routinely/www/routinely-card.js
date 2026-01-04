@@ -10,7 +10,7 @@
  * - ADHD-friendly UI/UX
  */
 
-console.log('%c ROUTINELY CARD v1.9.3 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
+console.log('%c ROUTINELY CARD v1.9.8 ', 'background: #FF6B6B; color: white; font-size: 14px; padding: 4px 8px; border-radius: 4px;');
 
 // All code is bundled inline for HACS compatibility
 let modulesLoaded = true;
@@ -520,6 +520,9 @@ class RoutinelyCard extends HTMLElement {
         <button class="nav-btn ${active === 'routines' ? 'active' : ''}" data-action="nav-routines">
           <span class="nav-btn-icon">🔄</span>Routines
         </button>
+        <button class="nav-btn" data-action="test-notification" title="Send test notification">
+          <span class="nav-btn-icon">🔔</span>Test
+        </button>
       </div>
     `;
   }
@@ -1004,6 +1007,20 @@ class RoutinelyCard extends HTMLElement {
         this._mode = 'routines';
         this._clearFormState();
         this._render();
+        break;
+      
+      case 'test-notification':
+        await this._callService('test_notification', { message: 'Test notification from Routinely card' });
+        // Show brief visual feedback
+        const testBtn = this.shadowRoot.querySelector('[data-action="test-notification"]');
+        if (testBtn) {
+          testBtn.style.background = 'var(--success-color, #66BB6A)';
+          testBtn.style.color = 'white';
+          setTimeout(() => {
+            testBtn.style.background = '';
+            testBtn.style.color = '';
+          }, 1000);
+        }
         break;
       
       // Routine actions
