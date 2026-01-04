@@ -117,6 +117,44 @@ class RoutinelyOptionsFlow(OptionsFlow):
         self._config_entry = config_entry
         self._data: dict[str, Any] = {}
 
+    async def _send_test_notification(self, message: str) -> None:
+        """Send a test notification to configured targets."""
+        targets_str = self._data.get(CONF_NOTIFICATION_TARGETS, "")
+        if not targets_str:
+            return
+        
+        targets = [t.strip() for t in targets_str.split(",") if t.strip()]
+        
+        for target in targets:
+            try:
+                service_data = {
+                    "title": "🧪 Routinely Test",
+                    "message": message,
+                    "data": {
+                        "push": {
+                            "sound": {"name": "default", "volume": 1.0},
+                            "interruption-level": "active",
+                        },
+                        "tts_text": message,
+                        "tag": "routinely_test",
+                        "actions": [
+                            {"action": "ROUTINELY_TEST_OK", "title": "OK"},
+                        ],
+                    },
+                }
+                
+                if target.startswith("mobile_app_"):
+                    await self.hass.services.async_call("notify", target, service_data)
+                elif "." in target:
+                    domain, service = target.split(".", 1)
+                    await self.hass.services.async_call(domain, service, service_data)
+                else:
+                    await self.hass.services.async_call("notify", target, service_data)
+                
+                _LOGGER.info("Test notification sent to %s", target)
+            except Exception as err:
+                _LOGGER.error("Failed to send test notification to %s: %s", target, err)
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -126,8 +164,8 @@ class RoutinelyOptionsFlow(OptionsFlow):
         if user_input is not None:
             self._data = dict(self._config_entry.options)
             
-            # Check if test notification requested
-            send_test = user_input.pop("send_test_notification", False)
+            # Extract test notification fields (don't save these)
+            test_message = user_input.pop("test_message", "")
             
             self._data.update(user_input)
             
@@ -136,9 +174,9 @@ class RoutinelyOptionsFlow(OptionsFlow):
             if isinstance(targets, list):
                 self._data[CONF_NOTIFICATION_TARGETS] = ",".join(targets)
             
-            # Send test notification if requested
-            if send_test and self._data.get(CONF_NOTIFICATION_TARGETS):
-                await self._send_test_notification()
+            # Send test notification if message provided
+            if test_message.strip() and self._data.get(CONF_NOTIFICATION_TARGETS):
+                await self._send_test_notification(test_message.strip())
             
             return await self.async_step_notifications()
 
@@ -206,6 +244,10 @@ class RoutinelyOptionsFlow(OptionsFlow):
                         LOG_LEVEL_WARNING,
                         LOG_LEVEL_ERROR,
                     ]),
+                    vol.Optional(
+                        "test_message",
+                        description={"suggested_value": "This is a notification test from Routinely"},
+                    ): str,
                 }
             ),
         )
