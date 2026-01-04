@@ -85,28 +85,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.warning("Could not register frontend card: %s", err)
 
-    # Listen for mobile app notification actions
+    # Listen for mobile app notification actions (iOS/Android companion app)
     async def handle_notification_action(event: Event) -> None:
         """Handle mobile app notification action events."""
         action = event.data.get("action", "")
         
-        # Map notification actions to coordinator methods
+        _log.debug("Received notification action event", action=action, event_data=event.data)
+        
+        # Map notification actions to coordinator methods (use .value for explicit string keys)
         action_handlers = {
-            NotificationAction.PAUSE: coordinator.pause,
-            NotificationAction.RESUME: coordinator.resume,
-            NotificationAction.SKIP: coordinator.skip_task,
-            NotificationAction.COMPLETE: coordinator.complete_task,
-            NotificationAction.CONFIRM: coordinator.confirm,
-            NotificationAction.SNOOZE: lambda: coordinator.snooze(30),
-            NotificationAction.CANCEL: coordinator.cancel,
+            NotificationAction.PAUSE.value: coordinator.pause,
+            NotificationAction.RESUME.value: coordinator.resume,
+            NotificationAction.SKIP.value: coordinator.skip_task,
+            NotificationAction.COMPLETE.value: coordinator.complete_task,
+            NotificationAction.CONFIRM.value: coordinator.confirm,
+            NotificationAction.SNOOZE.value: lambda: coordinator.snooze(30),
+            NotificationAction.CANCEL.value: coordinator.cancel,
         }
 
         handler = action_handlers.get(action)
         if handler:
-            _log.debug("Handling notification action", action=action)
-            await handler()
-        else:
-            _log.debug("Ignoring unrecognized notification action", action=action)
+            _log.info("Executing notification action", action=action)
+            try:
+                await handler()
+            except Exception as err:
+                _log.error("Failed to execute notification action", action=action, error=str(err))
+        elif action.startswith("ROUTINELY_"):
+            _log.warning("Unhandled Routinely notification action", action=action)
 
     entry.async_on_unload(
         hass.bus.async_listen("mobile_app_notification_action", handle_notification_action)

@@ -354,3 +354,18 @@ snooze:
 cancel:
   name: Cancel
   description: Cancel the active routine
+
+adjust_time:
+  name: Adjust Time
+  description: Adjust the current task's remaining time
+  fields:
+    seconds:
+      name: Seconds
+      description: Seconds to add (positive) or subtract (negative) from remaining time
+      required: true
+      selector:
+        number:
+          min: -600
+          max: 600
+          unit_of_measurement: seconds
+          mode: box

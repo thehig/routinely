@@ -150,32 +150,35 @@ class RoutinelyNotifications:
             "group": "routinely",
         }
 
-        # iOS-specific data for TTS and critical alerts
-        # This enables Siri to read notifications aloud
+        # iOS-specific data for push notifications
+        # See: https://companion.home-assistant.io/docs/notifications/notifications-basic
         data["push"] = {
-            # Announce notification via Siri TTS
             "sound": {
                 "name": "default",
                 "critical": 1 if critical else 0,
                 "volume": 1.0,
             },
             # iOS 15+ interruption level
-            # critical: Breaks through DND/Focus
+            # critical: Breaks through DND/Focus (requires entitlement)
             # time-sensitive: May break through some Focus modes  
             # active: Normal notification
             # passive: Silent
             "interruption-level": "time-sensitive" if critical else "active",
         }
 
-        # iOS announcement - Siri will speak this
-        # Requires "Announce Notifications" enabled in iOS Settings
+        # iOS announcement - Siri will speak this when using AirPods/CarPlay
+        # Requires "Announce Notifications" enabled in iOS Settings > Notifications > Announce Notifications
         data["apns_headers"] = {
             "apns-push-type": "alert",
         }
         
-        # Spoken announcement content for iOS
-        # This is what Siri will read aloud
+        # Spoken announcement content for iOS Siri TTS
         data["tts_text"] = tts_message
+        
+        # For iOS critical alerts (requires special entitlement)
+        if critical:
+            data["push"]["sound"]["critical"] = 1
+            data["push"]["sound"]["volume"] = 1.0
 
         # Android-specific data for TTS
         data["ttl"] = 0
@@ -190,16 +193,25 @@ class RoutinelyNotifications:
         data["persistent"] = notification_type in ("task_started", "routine_paused")
         data["sticky"] = data["persistent"]
 
-        # Actionable notification buttons
+        # Actionable notification buttons (iOS format)
         if actions:
-            data["actions"] = [
-                {
+            data["actions"] = []
+            for action in actions:
+                action_data = {
                     "action": action.value,
                     "title": self._get_action_title(action),
-                    "icon": self._get_action_icon(action),
                 }
-                for action in actions
-            ]
+                # iOS SF Symbols icon
+                icon = self._get_action_icon(action)
+                if icon:
+                    action_data["icon"] = icon
+                # Destructive actions show in red on iOS
+                if action in (NotificationAction.CANCEL, NotificationAction.SKIP):
+                    action_data["destructive"] = True
+                # Auth required actions need device unlock
+                if action in (NotificationAction.CANCEL,):
+                    action_data["authenticationRequired"] = True
+                data["actions"].append(action_data)
 
         # Merge extra data
         if extra_data:
