@@ -4,7 +4,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.notify import ATTR_DATA, ATTR_MESSAGE, ATTR_TITLE
-from homeassistant.const import ATTR_NAME
 
 from .const import (
     CONF_NOTIFICATION_TARGETS,
@@ -86,18 +85,25 @@ class RoutinelyNotifications:
             critical=critical,
         )
 
-        # Build notification data
-        notification_data = self._build_notification_data(
-            notification_type=notification_type,
-            actions=actions,
-            tts_message=tts_message or message,
-            critical=critical,
-            extra_data=data,
-        )
+        tts_text = tts_message or message
 
         for target in targets:
             try:
-                await self._send_to_target(target, title, message, notification_data)
+                # Build platform-specific notification data per target
+                notification_data = self._build_notification_data(
+                    notification_type=notification_type,
+                    actions=actions,
+                    tts_message=tts_text,
+                    critical=critical,
+                    extra_data=data,
+                    target=target,
+                )
+                # For Android TTS critical, message must be "TTS"
+                effective_message = message
+                if critical and self._is_android_target(target):
+                    effective_message = "TTS"
+                
+                await self._send_to_target(target, title, effective_message, notification_data)
                 _log.debug("Notification sent", target=target, type=notification_type)
             except Exception as err:
                 _log.error(
@@ -105,6 +111,24 @@ class RoutinelyNotifications:
                     target=target,
                     error=str(err),
                 )
+
+    @staticmethod
+    def _is_android_target(target: str) -> bool:
+        """Check if target is likely an Android device.
+        
+        Android device IDs often contain 'android' or lack 'iphone/ipad'.
+        This is heuristic - users can override via settings if needed.
+        """
+        target_lower = target.lower()
+        # Explicit android indicators
+        if "android" in target_lower or "pixel" in target_lower or "galaxy" in target_lower:
+            return True
+        # iOS indicators - if present, it's not Android
+        if "iphone" in target_lower or "ipad" in target_lower or "ios" in target_lower:
+            return False
+        # Default to Android for mobile_app_ targets without iOS indicators
+        # (Android is more common and benefits more from TTS critical)
+        return target.startswith("mobile_app_")
 
     async def _send_to_target(
         self,
@@ -143,57 +167,97 @@ class RoutinelyNotifications:
         tts_message: str,
         critical: bool,
         extra_data: dict[str, Any] | None,
+        target: str = "",
     ) -> dict[str, Any]:
-        """Build cross-platform notification data with TTS support."""
+        """Build cross-platform notification data with TTS support.
+        
+        Critical notification implementation based on:
+        https://companion.home-assistant.io/docs/notifications/critical-notifications/
+        
+        iOS (top priority):
+        - push.sound.critical: 1 - bypasses DND/mute
+        - push.sound.volume: 1.0 - max volume
+        - push.interruption-level: "critical" - highest priority
+        
+        Android (second priority):
+        - ttl: 0 - immediate delivery
+        - priority: high - high priority FCM
+        - media_stream: alarm_stream_max - TTS at max volume, reverts after
+        - tts_text: "<message>" - text to speak
+        - message: "TTS" - triggers TTS mode (handled in caller)
+        """
+        is_android = self._is_android_target(target)
+        
         data: dict[str, Any] = {
             "tag": f"routinely_{notification_type}",
             "group": "routinely",
         }
 
-        # iOS-specific data for push notifications
-        # See: https://companion.home-assistant.io/docs/notifications/notifications-basic
-        data["push"] = {
-            "sound": {
-                "name": "default",
-                "critical": 1 if critical else 0,
-                "volume": 1.0,
-            },
-            # iOS 15+ interruption level
-            # critical: Breaks through DND/Focus (requires entitlement)
-            # time-sensitive: May break through some Focus modes  
-            # active: Normal notification
-            # passive: Silent
-            "interruption-level": "time-sensitive" if critical else "active",
-        }
+        # ============================================================
+        # iOS Critical Notifications (TOP PRIORITY)
+        # See: https://companion.home-assistant.io/docs/notifications/critical-notifications/#ios
+        # ============================================================
+        if critical:
+            # Critical alert: bypasses DND, plays sound even when muted
+            data["push"] = {
+                "sound": {
+                    "name": "default",
+                    "critical": 1,
+                    "volume": 1.0,  # Maximum volume
+                },
+                # Critical interruption level - highest priority on iOS
+                # Breaks through all DND/Focus modes
+                "interruption-level": "critical",
+            }
+        else:
+            data["push"] = {
+                "sound": {
+                    "name": "default",
+                    "critical": 0,
+                    "volume": 0.8,
+                },
+                # time-sensitive: May break through some Focus modes
+                # active: Normal notification
+                "interruption-level": "time-sensitive",
+            }
 
-        # iOS announcement - Siri will speak this when using AirPods/CarPlay
-        # Requires "Announce Notifications" enabled in iOS Settings > Notifications > Announce Notifications
+        # iOS announcement - Siri speaks this on AirPods/CarPlay/HomePod
         data["apns_headers"] = {
             "apns-push-type": "alert",
         }
-        
-        # Spoken announcement content for iOS Siri TTS
-        data["tts_text"] = tts_message
-        
-        # For iOS critical alerts (requires special entitlement)
-        if critical:
-            data["push"]["sound"]["critical"] = 1
-            data["push"]["sound"]["volume"] = 1.0
 
-        # Android-specific data for TTS
-        data["ttl"] = 0
-        data["priority"] = "high" if critical else "normal"
-        data["channel"] = "routinely_alerts" if critical else "routinely"
+        # ============================================================
+        # Android Critical Notifications with TTS (SECOND PRIORITY)
+        # See: https://companion.home-assistant.io/docs/notifications/critical-notifications/#android
+        # ============================================================
+        # Base Android settings for high priority delivery
+        data["ttl"] = 0  # Immediate delivery, no FCM delay
+        data["priority"] = "high"  # High priority FCM message
         
-        # Android TTS via notification channel settings or automation
+        if critical:
+            # Android TTS at maximum volume using alarm stream
+            # This will:
+            # 1. Play from alarm stream (rings even on vibrate/silent)
+            # 2. Set volume to max
+            # 3. Speak the tts_text
+            # 4. Revert volume to original level after speaking
+            data["media_stream"] = "alarm_stream_max"
+            data["tts_text"] = tts_message
+            data["channel"] = "alarm_stream"  # Use alarm channel
+        else:
+            # Non-critical: standard TTS on notification stream
+            data["tts_text"] = tts_message
+            data["channel"] = "routinely"
+
+        # Legacy TTS fields for compatibility
         data["tts"] = tts_message
-        data["speak"] = tts_message  # Alternative TTS field
+        data["speak"] = tts_message
 
         # Persistent notification (stays until dismissed)
         data["persistent"] = notification_type in ("task_started", "routine_paused")
         data["sticky"] = data["persistent"]
 
-        # Actionable notification buttons (iOS format)
+        # Actionable notification buttons
         if actions:
             data["actions"] = []
             for action in actions:
@@ -213,7 +277,7 @@ class RoutinelyNotifications:
                     action_data["authenticationRequired"] = True
                 data["actions"].append(action_data)
 
-        # Merge extra data
+        # Merge extra data (allows per-notification overrides)
         if extra_data:
             data.update(extra_data)
 
